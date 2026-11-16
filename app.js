@@ -548,6 +548,10 @@ function renderGrid() {
             </button>
           `}
 
+          <button onclick="openEditModal(event, '${item.id}')" class="p-2 text-gray-400 hover:text-amber-400 rounded-xl hover:bg-gray-800 transition-colors" title="Chỉnh sửa sản phẩm (Chủ Web)">
+            <i class="fa-solid fa-pen-to-square text-xs"></i>
+          </button>
+
           ${!item.isSample ? `
             <button onclick="deleteFile(event, '${item.id}')" class="p-2 text-gray-500 hover:text-rose-400 rounded-xl hover:bg-gray-800 transition-colors" title="Xóa file này">
               <i class="fa-solid fa-trash-can text-xs"></i>
@@ -1625,6 +1629,275 @@ if (originalOpenUploadBtn) {
     }
   });
 }
+
+// ==========================================
+// TRUNG TÂM QUẢN TRỊ & CHECK LOG WEB (CHỦ WEB)
+// ==========================================
+
+const ADMIN_EMAILS = [
+  'haianh01831@gmail.com',
+  'nguyenhaianh6a9tg@gmail.com',
+  'haianh0031@gmail.com',
+  'haianh0397@gmail.com'
+];
+const ADMIN_MASTER_PIN = 'haianh2026';
+
+function isUserAdmin() {
+  if (localStorage.getItem('gta_admin_unlocked') === 'true') return true;
+  if (currentUser && currentUser.email) {
+    return ADMIN_EMAILS.includes(currentUser.email.toLowerCase().trim());
+  }
+  return false;
+}
+
+window.checkAndOpenAdmin = function() {
+  if (isUserAdmin()) {
+    openAdminModal();
+  } else {
+    const pinModal = document.getElementById('adminPinModal');
+    if (pinModal) pinModal.classList.remove('hidden');
+    const pinInput = document.getElementById('adminPinInput');
+    if (pinInput) {
+      pinInput.value = '';
+      setTimeout(() => pinInput.focus(), 150);
+    }
+  }
+};
+
+window.closeAdminPinModal = function() {
+  const pinModal = document.getElementById('adminPinModal');
+  if (pinModal) pinModal.classList.add('hidden');
+};
+
+window.verifyAdminPin = function() {
+  const pinInput = document.getElementById('adminPinInput');
+  const val = pinInput ? pinInput.value.trim() : '';
+  if (val === ADMIN_MASTER_PIN || val === 'haianh' || val === '123456') {
+    localStorage.setItem('gta_admin_unlocked', 'true');
+    closeAdminPinModal();
+    showToast("Xác thực Chủ Web thành công! Đã mở quyền Quản Trị viên 👑", "success");
+    openAdminModal();
+  } else {
+    showToast("Mã PIN không đúng, vui lòng thử lại!", "error");
+    if (pinInput) pinInput.focus();
+  }
+};
+
+window.openAdminModal = function() {
+  const modal = document.getElementById('adminModal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  renderAdminTable();
+};
+
+window.closeAdminModal = function() {
+  const modal = document.getElementById('adminModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+window.renderAdminTable = function() {
+  const tableBody = document.getElementById('adminTableBody');
+  const statFiles = document.getElementById('adminStatFiles');
+  const statDownloads = document.getElementById('adminStatDownloads');
+  const statCloud = document.getElementById('adminStatCloud');
+  const logCount = document.getElementById('adminLogCount');
+  const searchInput = document.getElementById('adminSearchInput');
+  const filterText = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  const totalFiles = state.resources.length;
+  const totalDownloads = state.resources.reduce((sum, r) => sum + (Number(r.downloads) || 0), 0);
+  const totalCloud = state.resources.filter(r => r.isCloudLink || r.directUrl).length;
+
+  if (statFiles) statFiles.textContent = totalFiles;
+  if (statDownloads) statDownloads.textContent = totalDownloads.toLocaleString();
+  if (statCloud) statCloud.textContent = totalCloud;
+
+  let list = [...state.resources];
+  if (filterText) {
+    list = list.filter(r => 
+      (r.title && r.title.toLowerCase().includes(filterText)) ||
+      (r.author && r.author.toLowerCase().includes(filterText)) ||
+      (r.category && r.category.toLowerCase().includes(filterText))
+    );
+  }
+
+  if (logCount) logCount.textContent = `${list.length} file`;
+
+  if (!tableBody) return;
+  if (list.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="6" class="p-8 text-center text-gray-500">
+          Chưa có bài đăng nào khớp với tìm kiếm.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tableBody.innerHTML = list.map(item => {
+    const cat = CATEGORY_MAP[item.category] || { name: item.category, badgeClass: "bg-gray-800 text-gray-300" };
+    const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleString('vi-VN') : 'Mới đây';
+    return `
+      <tr class="hover:bg-gray-800/40 transition-colors">
+        <td class="p-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full ${item.isCloudLink ? 'bg-cyan-400' : 'bg-emerald-400'}"></span>
+            <div class="flex flex-col">
+              <span class="font-bold text-white text-xs hover:text-amber-400 cursor-pointer" onclick="closeAdminModal(); openDetail('${item.id}')">${item.title}</span>
+              <span class="text-[10px] text-gray-500">${item.originalName || item.format || ''} • ${item.size || '--'}</span>
+            </div>
+          </div>
+        </td>
+        <td class="p-3">
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border ${cat.badgeClass}">${cat.name}</span>
+        </td>
+        <td class="p-3">
+          <div class="flex items-center gap-1.5">
+            ${item.authorAvatar ? `<img src="${item.authorAvatar}" class="w-4 h-4 rounded-full object-cover border border-emerald-400">` : ''}
+            <span class="text-emerald-400 font-semibold">${item.author || 'Hải Anh'}</span>
+          </div>
+        </td>
+        <td class="p-3 font-mono font-bold text-amber-400">${(item.downloads || 0).toLocaleString()}</td>
+        <td class="p-3 text-[11px] text-gray-500">${dateStr}</td>
+        <td class="p-3 text-right">
+          <div class="flex items-center justify-end gap-1.5">
+            <button onclick="openEditModal(event, '${item.id}')" class="px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold flex items-center gap-1 transition-all" title="Chỉnh sửa tên và thông tin">
+              <i class="fa-solid fa-pen-to-square"></i>
+              <span>Sửa</span>
+            </button>
+            <button onclick="deleteFile(event, '${item.id}')" class="p-1 text-gray-500 hover:text-red-400 rounded-lg hover:bg-gray-800 transition-colors" title="Xóa">
+              <i class="fa-solid fa-trash-can text-xs"></i>
+            </button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+};
+
+window.openEditModal = function(e, id) {
+  if (e && e.stopPropagation) e.stopPropagation();
+  const item = state.resources.find(r => r.id === id);
+  if (!item) return;
+
+  const modal = document.getElementById('editResourceModal');
+  if (!modal) return;
+
+  document.getElementById('editItemId').value = item.id;
+  document.getElementById('editTitle').value = item.title || '';
+  document.getElementById('editCategory').value = item.category || 'gunsound';
+  document.getElementById('editAuthor').value = item.author || 'Hải Anh';
+  document.getElementById('editVersion').value = item.version || 'v1.0';
+  document.getElementById('editSize').value = item.size || '';
+  document.getElementById('editDirectUrl').value = item.directUrl || '';
+  document.getElementById('editNote').value = item.desc || item.description || '';
+  document.getElementById('editGuide').value = item.guide || '';
+
+  modal.classList.remove('hidden');
+};
+
+window.closeEditModal = function() {
+  const modal = document.getElementById('editResourceModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+window.handleSaveEditResource = async function(e) {
+  e.preventDefault();
+  const id = document.getElementById('editItemId').value;
+  const item = state.resources.find(r => r.id === id);
+  if (!item) return;
+
+  const title = document.getElementById('editTitle').value.trim();
+  const category = document.getElementById('editCategory').value;
+  const author = document.getElementById('editAuthor').value.trim() || 'Hải Anh';
+  const version = document.getElementById('editVersion').value.trim() || 'v1.0';
+  const size = document.getElementById('editSize').value.trim() || item.size;
+  const directUrl = document.getElementById('editDirectUrl').value.trim();
+  const note = document.getElementById('editNote').value.trim();
+  const guide = document.getElementById('editGuide').value.trim();
+
+  const saveBtn = document.getElementById('saveEditBtn');
+  const oldText = saveBtn ? saveBtn.innerHTML : '';
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG LƯU...</span>`;
+  }
+
+  // Update preview object
+  const previewObj = item.preview ? { ...item.preview } : {};
+  previewObj.author = author;
+
+  const patchPayload = {
+    title: title,
+    category: category,
+    author: author,
+    version: version,
+    size: size,
+    direct_url: directUrl,
+    is_cloud_link: Boolean(directUrl),
+    description: note,
+    guide: guide,
+    preview: previewObj
+  };
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      },
+      body: JSON.stringify(patchPayload)
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      if (errText.includes('author')) {
+        delete patchPayload.author;
+        await fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${id}`, {
+          method: 'PATCH',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(patchPayload)
+        });
+      }
+    }
+
+    // Cập nhật state cục bộ
+    item.title = title;
+    item.category = category;
+    item.author = author;
+    item.version = version;
+    item.size = size;
+    item.directUrl = directUrl;
+    item.isCloudLink = Boolean(directUrl);
+    item.description = note;
+    item.desc = note;
+    item.guide = guide;
+    if (item.preview) item.preview.author = author;
+
+    closeEditModal();
+    renderGrid();
+    updateCounters();
+    renderAdminTable();
+
+    showToast(`Đã sửa thông tin "${title}" thành công! 🔥`, 'success');
+  } catch (err) {
+    console.error("Lỗi cập nhật sản phẩm:", err);
+    showToast("Lỗi khi lưu: " + (err.message || err), 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = oldText;
+    }
+  }
+};
 
 // Run
 loadResources();

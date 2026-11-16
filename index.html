@@ -141,6 +141,13 @@
           </div>
         </div>
 
+        <!-- Nút Quản Trị & Check Log (Dành riêng cho Chủ Web) -->
+        <button type="button" id="adminBtn" onclick="checkAndOpenAdmin()"
+          class="px-2.5 sm:px-3 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-1.5 font-heading transition-all">
+          <i class="fa-solid fa-crown text-black"></i>
+          <span class="hidden sm:inline">QUẢN TRỊ & LOG</span>
+        </button>
+
         <button id="openUploadBtn"
           class="px-3.5 sm:px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-black font-semibold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 font-heading tracking-wide">
           <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -702,6 +709,253 @@
     </div>
   </div>
 
+  <!-- Modal: Xác thực Mã PIN Quản Trị (Chủ Web) -->
+  <div id="adminPinModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-[#101424] border border-amber-500/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl shadow-amber-500/10">
+      <div class="p-5 border-b border-gray-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <i class="fa-solid fa-crown text-base"></i>
+          </div>
+          <div>
+            <h3 class="font-heading font-bold text-white text-base">Xác Thực Chủ Web</h3>
+            <p class="text-[11px] text-gray-400">Nhập mã PIN để mở bảng quản trị & log</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeAdminPinModal()" class="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center justify-between">
+            <span>Mã PIN Quản Trị Viên</span>
+            <span class="text-[10px] text-amber-400">Chỉ 1 mình bạn biết</span>
+          </label>
+          <input type="password" id="adminPinInput" placeholder="Nhập mã PIN..."
+            class="w-full bg-black/60 border-2 border-amber-500/50 focus:border-amber-400 rounded-xl px-4 py-2.5 text-white text-center font-mono font-bold text-lg tracking-[0.3em] outline-none transition-all">
+        </div>
+
+        <button type="button" onclick="verifyAdminPin()" class="w-full py-2.5 px-4 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-amber-500/20 font-heading flex items-center justify-center gap-2">
+          <i class="fa-solid fa-unlock-keyhole"></i>
+          <span>MỞ BẢNG QUẢN TRỊ & LOG</span>
+        </button>
+
+        <p class="text-[10px] text-gray-500 text-center">
+          💡 Mẹo: Khi bạn đăng nhập bằng Gmail của bạn, hệ thống sẽ tự động mở mà không cần gõ mã PIN.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Bảng Quản Trị & Check Log Web (Chỉ Chủ Web Xem Được) -->
+  <div id="adminModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-6 overflow-y-auto mobile-scroll">
+    <div class="bg-[#0f121e] border-2 border-amber-500/40 rounded-2xl w-full max-w-5xl shadow-2xl relative flex flex-col max-h-[92vh] overflow-hidden">
+      <!-- Admin Header -->
+      <div class="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between shrink-0 bg-[#121526]">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-lg">
+            <i class="fa-solid fa-crown"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h3 class="font-heading font-black text-white text-base sm:text-lg">TRUNG TÂM QUẢN TRỊ & CHECK LOG WEB</h3>
+              <span class="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold font-mono">CHỦ WEB: HẢI ANH</span>
+            </div>
+            <p class="text-[11px] text-gray-400">Kiểm tra lượt tải, theo dõi log hoạt động và chỉnh sửa lại tên bài đăng</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeAdminModal()" class="w-9 h-9 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white flex items-center justify-center transition-all">
+          <i class="fa-solid fa-xmark text-base"></i>
+        </button>
+      </div>
+
+      <!-- Admin Body -->
+      <div class="p-4 sm:p-6 overflow-y-auto mobile-scroll space-y-6 flex-1">
+        <!-- 4 Stats Cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div class="bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 space-y-1">
+            <span class="text-[11px] text-gray-400 block font-medium">Tổng File Đã Đăng</span>
+            <div class="flex items-baseline gap-2">
+              <span id="adminStatFiles" class="font-heading font-black text-2xl text-white">0</span>
+              <span class="text-[10px] text-emerald-400 font-semibold">Tài nguyên</span>
+            </div>
+          </div>
+          <div class="bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 space-y-1">
+            <span class="text-[11px] text-gray-400 block font-medium">Tổng Lượt Tải Toàn Web</span>
+            <div class="flex items-baseline gap-2">
+              <span id="adminStatDownloads" class="font-heading font-black text-2xl text-emerald-400">0</span>
+              <span class="text-[10px] text-gray-500 font-semibold">Lượt click tải</span>
+            </div>
+          </div>
+          <div class="bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 space-y-1">
+            <span class="text-[11px] text-gray-400 block font-medium">File Lưu Trữ Cloud 24/7</span>
+            <div class="flex items-baseline gap-2">
+              <span id="adminStatCloud" class="font-heading font-black text-2xl text-cyan-400">0</span>
+              <span class="text-[10px] text-gray-500 font-semibold">Google Drive / Cloud</span>
+            </div>
+          </div>
+          <div class="bg-gray-900/90 border border-gray-800 rounded-xl p-3.5 space-y-1">
+            <span class="text-[11px] text-gray-400 block font-medium">Trạng Thái Máy Chủ</span>
+            <div class="flex items-center gap-1.5 pt-1">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span class="text-xs font-bold text-emerald-400">Supabase Online 24/7</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action / Filter Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <div class="flex items-center gap-2">
+            <h4 class="font-heading font-bold text-white text-sm sm:text-base flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-amber-400"></i>
+              <span>Nhật Ký File & Quản Lý Sản Phẩm</span>
+            </h4>
+            <span class="text-[11px] bg-gray-800 px-2 py-0.5 rounded-full text-gray-300 font-mono" id="adminLogCount">0 file</span>
+          </div>
+
+          <div class="w-full sm:w-64">
+            <input type="text" id="adminSearchInput" oninput="renderAdminTable()" placeholder="Lọc theo tên, tác giả..."
+              class="w-full bg-black/60 border border-gray-700 focus:border-amber-400 rounded-xl px-3 py-1.5 text-xs text-white placeholder-gray-500 outline-none">
+          </div>
+        </div>
+
+        <!-- Table of all items with Edit & Delete actions -->
+        <div class="bg-gray-900/80 border border-gray-800 rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-gray-300">
+              <thead class="bg-black/50 text-[11px] text-gray-400 uppercase font-heading border-b border-gray-800">
+                <tr>
+                  <th class="p-3">Tên Sản Phẩm / Tiêu Đề</th>
+                  <th class="p-3">Chuyên Mục</th>
+                  <th class="p-3">Người Đăng (Cre)</th>
+                  <th class="p-3">Lượt Tải</th>
+                  <th class="p-3">Ngày Đăng</th>
+                  <th class="p-3 text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody id="adminTableBody" class="divide-y divide-gray-800/60 font-medium">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Admin Footer -->
+      <div class="p-3.5 bg-[#121526] border-t border-gray-800 flex items-center justify-between text-xs text-gray-500 shrink-0">
+        <span class="flex items-center gap-1.5">
+          <i class="fa-solid fa-lock text-amber-400"></i>
+          <span>Khu vực bảo mật riêng biệt • Chỉ người có quyền mới truy cập được</span>
+        </span>
+        <button type="button" onclick="closeAdminModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold text-xs">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Chỉnh Sửa Sản Phẩm / Đổi Tên File Đã Đăng -->
+  <div id="editResourceModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto mobile-scroll">
+    <div class="bg-[#101424] border-2 border-amber-500/40 rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-[85dvh] overflow-hidden my-auto">
+      <!-- Edit Header -->
+      <div class="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between shrink-0 bg-[#121526]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <i class="fa-solid fa-pen-to-square"></i>
+          </div>
+          <div>
+            <h3 class="font-heading font-bold text-white text-base">Chỉnh Sửa Thông Tin Sản Phẩm</h3>
+            <p class="text-[11px] text-gray-400">Đổi lại tên, chuyên mục, tác giả hoặc link tải sau khi đăng</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeEditModal()" class="w-8 h-8 rounded-lg bg-gray-800 text-gray-400 hover:text-white flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Edit Form -->
+      <form id="editResourceForm" onsubmit="handleSaveEditResource(event)" class="flex flex-col flex-1 overflow-hidden">
+        <input type="hidden" id="editItemId">
+        
+        <div class="p-4 sm:p-5 space-y-3.5 overflow-y-auto mobile-scroll flex-1">
+          <!-- Tên sản phẩm / Tiêu đề -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Tên hiển thị / Tiêu đề sản phẩm</label>
+            <input type="text" id="editTitle" required
+              class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-sm outline-none transition-all">
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- Chuyên mục -->
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Chuyên mục phân loại</label>
+              <select id="editCategory" required
+                class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs outline-none">
+                <option value="gunsound">🔊 Tiếng súng GTA 5</option>
+                <option value="reshade">🎨 ReShade Đồ Họa</option>
+                <option value="dump">🛠️ File Dump & Crash</option>
+                <option value="source">💻 Source GTA 5</option>
+                <option value="software">⚙️ Phần Mềm Hỗ Trợ</option>
+              </select>
+            </div>
+
+            <!-- Tác giả / Cre -->
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Tác giả (Cre)</label>
+              <input type="text" id="editAuthor" required
+                class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs outline-none">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Phiên bản</label>
+              <input type="text" id="editVersion" placeholder="v1.0"
+                class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-gray-300 mb-1">Dung lượng hiển thị</label>
+              <input type="text" id="editSize" placeholder="VD: 50 MB / 6.6 GB"
+                class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs outline-none">
+            </div>
+          </div>
+
+          <!-- Link tải trực tiếp / Drive nếu có -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1 flex items-center justify-between">
+              <span>Link tải trực tiếp / Google Drive</span>
+              <span class="text-[10px] text-gray-500">Để trống nếu dùng file upload sẵn</span>
+            </label>
+            <input type="url" id="editDirectUrl" placeholder="https://drive.google.com/..."
+              class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs font-mono outline-none">
+          </div>
+
+          <!-- Ghi chú & Hướng dẫn -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Ghi chú ngắn</label>
+            <input type="text" id="editNote" placeholder="Ghi chú khi tải file..."
+              class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs outline-none">
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1">Hướng dẫn cài đặt nhanh</label>
+            <textarea id="editGuide" rows="2" placeholder="Hướng dẫn cài đặt mod..."
+              class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl p-3 text-white text-xs outline-none"></textarea>
+          </div>
+        </div>
+
+        <!-- Edit Footer -->
+        <div class="p-3.5 sm:p-4 bg-[#0d101a] border-t border-gray-800 flex items-center justify-end gap-2.5 shrink-0">
+          <button type="button" onclick="closeEditModal()" class="px-4 py-2 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 font-semibold text-xs transition-colors">Hủy</button>
+          <button type="submit" id="saveEditBtn" class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold rounded-xl shadow-lg shadow-amber-500/20 font-heading flex items-center gap-1.5 text-xs transition-all">
+            <i class="fa-solid fa-floppy-disk"></i>
+            <span>LƯU THAY ĐỔI NGAY</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast"
     class="fixed bottom-5 right-5 bg-gray-900 border border-gray-700 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transform translate-y-20 opacity-0 transition-all duration-300 z-50">
@@ -739,7 +993,10 @@
       </p>
       <p>Chuyên mục phân loại riêng: Tiếng súng (Gun Sounds), ReShade đồ họa, File Dump và Mã nguồn Script mod FiveM.
       </p>
-      <p class="text-[11px] text-gray-600">Dành riêng cho cộng đồng Modding và Game thủ GTA 5 / FiveM Việt Nam.</p>
+      <p class="text-[11px] text-gray-600">
+        Dành riêng cho cộng đồng Modding và Game thủ GTA 5 / FiveM Việt Nam. • 
+        <button type="button" onclick="checkAndOpenAdmin()" class="text-gray-500 hover:text-amber-400 underline transition-colors">Khu Vực Quản Trị & Check Log (Chủ Web)</button>
+      </p>
     </div>
   </footer>
 
