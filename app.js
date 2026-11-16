@@ -219,6 +219,12 @@ function updateDownloadCount(id, count) {
 const SAMPLE_TEMPLATES = [];
 
 // State
+let savedDiscordSettings = { discord_webhook: "", discord_enabled: true };
+try {
+  const localSet = localStorage.getItem("toanbo_discord_settings");
+  if (localSet) savedDiscordSettings = { ...savedDiscordSettings, ...JSON.parse(localSet) };
+} catch (e) {}
+
 let state = {
   resources: [],
   activeCategory: "all",
@@ -226,7 +232,8 @@ let state = {
   sortBy: "newest",
   favorites: JSON.parse(localStorage.getItem("gta_favorites") || "[]"),
   activeItem: null,
-  isBackendConnected: false
+  isBackendConnected: false,
+  settings: savedDiscordSettings
 };
 
 // DOM References
@@ -410,7 +417,21 @@ async function loadResources() {
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        loadedItems = data.map(normalizeResource);
+        // Tách cấu hình hệ thống (system_settings) ra khỏi danh sách mod công khai
+        const sysSettings = data.find(item => item && item.id === 'system_settings');
+        if (sysSettings && sysSettings.preview) {
+          try {
+            const prev = typeof sysSettings.preview === 'string' ? JSON.parse(sysSettings.preview) : sysSettings.preview;
+            state.settings = {
+              discord_webhook: prev.discord_webhook || '',
+              discord_enabled: prev.discord_enabled !== false
+            };
+            localStorage.setItem('toanbo_discord_settings', JSON.stringify(state.settings));
+          } catch (e) {}
+        }
+
+        const modFiles = data.filter(item => item && item.id !== 'system_settings');
+        loadedItems = modFiles.map(normalizeResource);
         state.isBackendConnected = true;
       }
     }
@@ -460,6 +481,7 @@ async function loadResources() {
 
   updateCounters();
   renderGrid();
+  checkUrlDirectMod();
 }
 
 function updateCounters() {
@@ -1761,6 +1783,7 @@ uploadForm.addEventListener("submit", async (e) => {
 
       renderGrid();
       updateCounters();
+      sendDiscordNotification(savedItem).catch(e => console.warn("Discord hook error:", e));
       showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${savedItem.title}" (Cre: ${savedItem.author}) đã xuất hiện trên web!`);
       return;
     } catch (err) {
@@ -1951,6 +1974,7 @@ uploadForm.addEventListener("submit", async (e) => {
 
     renderGrid();
     updateCounters();
+    sendDiscordNotification(savedItem).catch(e => console.warn("Discord hook error:", e));
     showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${savedItem.title}" (Cre: ${savedItem.author}) đã xuất hiện trên web!`);
     return;
   } catch (err) {
@@ -2499,6 +2523,7 @@ window.openAdminModal = function() {
   const modal = document.getElementById('adminModal');
   if (!modal) return;
   modal.classList.remove('hidden');
+  initDiscordSettingsUI();
   renderAdminTable();
 };
 
@@ -2777,6 +2802,256 @@ window.handleSaveEditResource = async function(e) {
       saveBtn.disabled = false;
       saveBtn.innerHTML = oldText;
     }
+  }
+};
+
+// ==========================================
+// TÍCH HỢP DISCORD WEBHOOK BOT & DEEP-LINK
+// ==========================================
+
+// Khởi tạo giá trị Webhook trong Admin Dashboard
+window.initDiscordSettingsUI = function() {
+  const webhookInput = document.getElementById('adminDiscordWebhook');
+  const toggleInput = document.getElementById('adminDiscordToggle');
+  if (webhookInput && state.settings) {
+    webhookInput.value = state.settings.discord_webhook || '';
+  }
+  if (toggleInput && state.settings) {
+    toggleInput.checked = state.settings.discord_enabled !== false;
+  }
+};
+
+// Ẩn/hiện link Webhook (password/text)
+window.toggleDiscordWebhookVisibility = function() {
+  const input = document.getElementById('adminDiscordWebhook');
+  const icon = document.getElementById('discordEyeIcon');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) icon.className = 'fa-solid fa-eye-slash';
+  } else {
+    input.type = 'password';
+    if (icon) icon.className = 'fa-solid fa-eye';
+  }
+};
+
+// Đóng mở khung hướng dẫn 10s lấy webhook
+window.toggleDiscordGuide = function() {
+  const guide = document.getElementById('discordGuideContent');
+  const icon = document.getElementById('discordGuideChevron');
+  if (!guide) return;
+  guide.classList.toggle('hidden');
+  if (icon) {
+    icon.classList.toggle('rotate-180', !guide.classList.contains('hidden'));
+  }
+};
+
+// Lưu cài đặt Discord Webhook (Đồng bộ đồng thời LocalStorage & Supabase Cloud)
+window.saveDiscordSettings = async function(showFeedback = true) {
+  const webhookInput = document.getElementById('adminDiscordWebhook');
+  const toggleInput = document.getElementById('adminDiscordToggle');
+  const webhookUrl = webhookInput ? webhookInput.value.trim() : (state.settings.discord_webhook || '');
+  const isEnabled = toggleInput ? toggleInput.checked : (state.settings.discord_enabled !== false);
+
+  state.settings = {
+    discord_webhook: webhookUrl,
+    discord_enabled: isEnabled
+  };
+
+  try {
+    localStorage.setItem('toanbo_discord_settings', JSON.stringify(state.settings));
+    
+    // Lưu vào Supabase Cloud record 'system_settings' để đồng bộ tất cả máy tính & điện thoại
+    const payload = {
+      id: 'system_settings',
+      category: 'settings',
+      title: 'Hệ Thống Cấu Hình Web',
+      original_name: 'system_settings',
+      preview: {
+        discord_webhook: webhookUrl,
+        discord_enabled: isEnabled,
+        updated_at: new Date().toISOString()
+      }
+    };
+
+    await fetch(`${SUPABASE_URL}/rest/v1/resources?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (showFeedback) {
+      showToast("Đã lưu cấu hình Bot Discord thành công! 🤖✅", "success");
+    }
+  } catch (err) {
+    console.error("Save discord settings error:", err);
+    if (showFeedback) {
+      showToast("Lỗi khi lưu cấu hình lên Cloud!", "warning");
+    }
+  }
+};
+
+// Bắn thử nghiệm Discord Webhook
+window.testDiscordWebhook = async function() {
+  const webhookInput = document.getElementById('adminDiscordWebhook');
+  const webhookUrl = webhookInput ? webhookInput.value.trim() : (state.settings.discord_webhook || '');
+  
+  if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+    showToast("Vui lòng nhập đúng đường link Discord Webhook (bắt đầu bằng https://discord.com/api/webhooks/)!", "warning");
+    return;
+  }
+
+  const btn = document.getElementById('btnTestDiscord');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>Đang Bắn...</span>`;
+  }
+
+  const testPayload = {
+    username: "TOÀN BỘ GTA 5 • Bot Thông Báo",
+    avatar_url: "https://toanbogta5.vercel.app/favicon.ico",
+    content: "🎉 **KẾT NỐI DISCORD WEBHOOK THÀNH CÔNG!**",
+    embeds: [
+      {
+        title: "⚡ Kiểm Tra Tự Động Bắn Thông Báo Mod Mới",
+        description: "Đây là tin nhắn thử nghiệm từ **Website TOÀN BỘ GTA 5** (Cre: Hải Anh).\n\nTừ bây giờ, mỗi khi có mod mới được đăng lên web, Bot sẽ tự động gửi thông báo kèm ảnh bìa siêu nét và link bấm tải ngay vào kênh này!",
+        color: 0x10b981,
+        fields: [
+          { name: "🌐 Website Chính Thức", value: "[toanbogta5.vercel.app](https://toanbogta5.vercel.app)", inline: true },
+          { name: "👑 Chủ Sở Hữu", value: "Hải Anh", inline: true },
+          { name: "🤖 Trạng Thái", value: "Sẵn sàng hoạt động 24/7", inline: true }
+        ],
+        footer: {
+          text: "TOÀN BỘ GTA 5 • Hệ Thống Tải Tài Nguyên GTA 5 Siêu Tốc 24/7",
+          icon_url: "https://toanbogta5.vercel.app/favicon.ico"
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(testPayload)
+    });
+
+    if (res.ok || res.status === 204) {
+      showToast("Đã bắn tin nhắn thử nghiệm vào Discord thành công! Hãy kiểm tra kênh chat của bạn 🚀", "success");
+      saveDiscordSettings(false);
+    } else {
+      showToast(`Không thể gửi đến Discord (Mã lỗi ${res.status}). Hãy kiểm tra lại link Webhook!`, "error");
+    }
+  } catch (err) {
+    console.error("Test discord webhook error:", err);
+    showToast("Lỗi kết nối khi gửi tới Discord: " + err.message, "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> <span>Bắn Thử Ngay</span>`;
+    }
+  }
+};
+
+// Gửi Embed thông báo tự động lên Discord khi có mod mới
+window.sendDiscordNotification = async function(item) {
+  if (!item) return false;
+  if (!state.settings || state.settings.discord_enabled === false) {
+    return false;
+  }
+  const webhookUrl = state.settings.discord_webhook;
+  if (!webhookUrl || !webhookUrl.startsWith("https://discord.com/api/webhooks/")) {
+    return false;
+  }
+
+  const cat = CATEGORY_MAP[item.category] || { name: item.category || 'Tài nguyên GTA 5', color: 'emerald' };
+  const colorMap = {
+    gunsound: 0x10b981, // Emerald Green
+    reshade: 0x06b6d4,  // Cyan
+    dump: 0xef4444,     // Red
+    source: 0x3b82f6,   // Blue
+    software: 0xa855f7  // Purple
+  };
+  const embedColor = colorMap[item.category] || 0x10b981;
+
+  // Banner image
+  let bannerUrl = item.banner || "";
+  if (!bannerUrl && item.preview) {
+    if (item.preview.banner) bannerUrl = item.preview.banner;
+    else if (item.preview.type === 'image' && item.preview.url) bannerUrl = item.preview.url;
+  }
+
+  // Deep link direct URL
+  const origin = (window.location.origin && !window.location.origin.includes('file:')) ? window.location.origin : 'https://toanbogta5.vercel.app';
+  const modUrl = `${origin}/?id=${encodeURIComponent(item.id)}`;
+
+  const embed = {
+    title: `📢 [MOD MỚI] ${item.title || 'Tài nguyên GTA 5'}`,
+    url: modUrl,
+    description: `${item.description ? item.description.substring(0, 240) : 'File mod vừa được cập nhật lên hệ thống!'}\n\n👉 **[BẤM VÀO ĐÂY ĐỂ XEM CHI TIẾT & TẢI VỀ WEB](${modUrl})**`,
+    color: embedColor,
+    fields: [
+      { name: "📁 Chuyên Mục", value: cat.name || "GTA 5", inline: true },
+      { name: "💾 Dung Lượng", value: item.size || "--", inline: true },
+      { name: "📦 Định Dạng", value: item.format || ".rar", inline: true },
+      { name: "👤 Người Đăng (Cre)", value: item.author || "Hải Anh", inline: true },
+      { name: "⚡ Tốc Độ Tải", value: "Cloud Siêu Tốc 24/7", inline: true },
+      { name: "🏷️ Phiên Bản", value: item.version || "v1.0", inline: true }
+    ],
+    footer: {
+      text: "TOÀN BỘ GTA 5 • Website Chia Sẻ Mod GTA V & FiveM Hàng Đầu",
+      icon_url: "https://toanbogta5.vercel.app/favicon.ico"
+    },
+    timestamp: new Date().toISOString()
+  };
+
+  if (bannerUrl && bannerUrl.startsWith("http")) {
+    embed.image = { url: bannerUrl };
+  }
+
+  const payload = {
+    username: "TOÀN BỘ GTA 5 • Bot Thông Báo",
+    avatar_url: "https://toanbogta5.vercel.app/favicon.ico",
+    content: `🔔 **Có Mod Mới Vừa Lên Sóng!** Mời anh em ghé qua xem thử và tải ngay:`,
+    embeds: [embed]
+  };
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    return res.ok || res.status === 204;
+  } catch (err) {
+    console.warn("Discord webhook notify error:", err);
+    return false;
+  }
+};
+
+// Deep link: Mở thẳng popup chi tiết mod khi click link từ Discord (?id=...)
+window.checkUrlDirectMod = function() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const modId = params.get('id');
+    if (modId && state.resources && state.resources.length > 0) {
+      const target = state.resources.find(r => String(r.id) === String(modId));
+      if (target) {
+        setTimeout(() => {
+          if (typeof openDetail === 'function') {
+            openDetail(target.id);
+          }
+        }, 350);
+      }
+    }
+  } catch (e) {
+    console.warn("Direct link handler warning:", e);
   }
 };
 
