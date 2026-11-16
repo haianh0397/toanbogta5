@@ -86,34 +86,54 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-async function uploadFileToSupabase(file) {
-  const fileExt = file.name.split('.').pop();
-  const safeName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/mods/${safeName}`;
+function uploadFileToSupabase(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    if (!file) return reject(new Error("Không tìm thấy file để tải lên!"));
 
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': file.type || 'application/octet-stream'
-    },
-    body: file
+    // Giới hạn 50MB của Supabase Storage
+    if (file.size > 50 * 1024 * 1024) {
+      return reject(new Error(`File "${file.name}" (${formatBytes(file.size)}) vượt quá giới hạn 50 MB của Cloud lưu trữ trực tiếp! Hãy dùng tab "Dán Link Google Drive" để đăng tải file lớn không giới hạn.`));
+    }
+
+    const fileExt = file.name.split('.').pop();
+    const safeName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/mods/${safeName}`;
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadUrl);
+    xhr.setRequestHeader('apikey', SUPABASE_KEY);
+    xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_KEY}`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+    if (xhr.upload && typeof onProgress === 'function') {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent, event.loaded, event.total);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve({
+          filename: safeName,
+          originalName: file.name,
+          size: formatBytes(file.size),
+          sizeBytes: file.size,
+          format: '.' + fileExt,
+          url: `${SUPABASE_URL}/storage/v1/object/public/mods/${safeName}`
+        });
+      } else if (xhr.status === 413 || (xhr.responseText && xhr.responseText.includes('EntityTooLarge'))) {
+        reject(new Error(`File "${file.name}" quá lớn (${formatBytes(file.size)})! Giới hạn lưu trữ trực tiếp là 50MB. Vui lòng chuyển sang tab "Dán Link Google Drive" để tải lên file này.`));
+      } else {
+        reject(new Error(`Lỗi tải lên Cloud (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error("Lỗi kết nối mạng khi tải file lên Cloud!"));
+    xhr.send(file);
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Lỗi tải file lên Cloud: ${res.status} - ${errText}`);
-  }
-
-  return {
-    filename: safeName,
-    originalName: file.name,
-    size: formatBytes(file.size),
-    sizeBytes: file.size,
-    format: '.' + fileExt,
-    url: `${SUPABASE_URL}/storage/v1/object/public/mods/${safeName}`
-  };
 }
 
 function updateDownloadCount(id, count) {
@@ -855,13 +875,23 @@ modalDownloadBtn.addEventListener("click", () => {
   }
 });
 
-// File upload selection label update
+// File upload selection label update & Kiểm tra giới hạn 50MB
 upFile.addEventListener("change", () => {
   if (upFile.files && upFile.files[0]) {
     const f = upFile.files[0];
     selectedFileName.textContent = `File 1: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
     if (!upTitle.value) {
       upTitle.value = f.name.replace(/\.[^/.]+$/, "");
+    }
+    if (f.size > 50 * 1024 * 1024) {
+      showToast(`⚠️ File "${f.name}" (${(f.size / (1024 * 1024)).toFixed(1)} MB) vượt giới hạn 50MB! Hãy dùng tab "Dán Link Google Drive".`, "warning");
+      setTimeout(() => {
+        if (confirm(`File "${f.name}" có dung lượng ${(f.size / (1024 * 1024)).toFixed(1)} MB (vượt quá mức 50MB của lưu trữ trực tiếp).\n\nBạn có muốn tự động chuyển sang tab "Dán Link Google Drive" để dán link tải tốc độ cao không?`)) {
+          switchUploadMode('drive');
+          const directSize = document.getElementById("upDirectSize");
+          if (directSize) directSize.value = `${(f.size / (1024 * 1024)).toFixed(1)} MB`;
+        }
+      }, 200);
     }
   }
 });
@@ -870,6 +900,9 @@ upFile2.addEventListener("change", () => {
   if (upFile2.files && upFile2.files[0]) {
     const f = upFile2.files[0];
     selectedFileName2.textContent = `File 2: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
+    if (f.size > 50 * 1024 * 1024) {
+      showToast(`⚠️ File 2 "${f.name}" vượt giới hạn 50MB! Hãy dùng tab "Dán Link Google Drive".`, "warning");
+    }
   }
 });
 
@@ -1106,29 +1139,46 @@ uploadForm.addEventListener("submit", async (e) => {
   const file1 = upFile.files[0];
   const file2 = upFile2.files && upFile2.files[0] ? upFile2.files[0] : null;
 
+  // Kiểm tra kích thước file: giới hạn 50MB của lưu trữ trực tiếp Cloud
+  if (file1.size > 50 * 1024 * 1024 || (file2 && file2.size > 50 * 1024 * 1024)) {
+    showToast("⚠️ File vượt quá giới hạn 50MB của lưu trữ trực tiếp! Hãy dùng tab 'Dán Link Google Drive'.", "warning");
+    switchUploadMode('drive');
+    const directSize = document.getElementById("upDirectSize");
+    if (directSize) directSize.value = formatBytes(file1.size + (file2 ? file2.size : 0));
+    return;
+  }
+
   uploadProgressContainer.classList.remove("hidden");
-  uploadProgressBar.style.width = "20%";
-  uploadPercent.textContent = "20%";
+  uploadProgressBar.style.width = "5%";
+  uploadPercent.textContent = "Bắt đầu tải lên...";
   submitUploadBtn.disabled = true;
 
   try {
-    // 1. Tải File 1 lên Supabase Storage
-    const uploaded1 = await uploadFileToSupabase(file1);
-    uploadProgressBar.style.width = "50%";
-    uploadPercent.textContent = "50%";
+    // 1. Tải File 1 lên Supabase Storage với phần trăm thật theo thời gian thực
+    const uploaded1 = await uploadFileToSupabase(file1, (percent, loaded, total) => {
+      const share = file2 ? 0.45 : 0.85;
+      const cur = Math.round(percent * share);
+      uploadProgressBar.style.width = `${cur}%`;
+      uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+    });
 
     // 2. Nếu có File 2 đi kèm
     let uploaded2 = null;
     if (file2) {
-      uploaded2 = await uploadFileToSupabase(file2);
-      uploadProgressBar.style.width = "75%";
-      uploadPercent.textContent = "75%";
+      uploadProgressBar.style.width = "45%";
+      uploadPercent.textContent = "45% (Đang tải File 2...)";
+      uploaded2 = await uploadFileToSupabase(file2, (percent, loaded, total) => {
+        const cur = 45 + Math.round(percent * 0.4);
+        uploadProgressBar.style.width = `${cur}%`;
+        uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+      });
     }
 
     // 3. Xử lý Preview (Video / Audio file, YouTube link hoặc Ảnh minh họa / Banner)
     let previewObj = null;
     let bannerUrl = "";
     if (upPreviewFile.files && upPreviewFile.files[0]) {
+      uploadPercent.textContent = "Đang tải ảnh / video xem thử...";
       const pFile = upPreviewFile.files[0];
       const pUp = await uploadFileToSupabase(pFile);
       const ext = pFile.name.split('.').pop().toLowerCase();
@@ -1190,8 +1240,8 @@ uploadForm.addEventListener("submit", async (e) => {
       direct_url: uploaded1.url
     };
 
-    uploadProgressBar.style.width = "90%";
-    uploadPercent.textContent = "90%";
+    uploadProgressBar.style.width = "95%";
+    uploadPercent.textContent = "Đang lưu lên hệ thống...";
 
     const supRes = await saveResourceToSupabase(newItem);
 
