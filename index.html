@@ -307,9 +307,12 @@
       <div class="p-4 sm:p-6 overflow-y-auto mobile-scroll custom-scroll space-y-5 flex-1 text-sm text-gray-300">
         <!-- Banner/Preview / Video Player -->
         <div id="modalBannerContainer"
-          class="w-full min-h-[160px] max-h-[280px] rounded-xl overflow-hidden relative bg-black/80 border border-gray-800 flex items-center justify-center">
-          <img id="modalBannerImg" src="" alt="Preview" class="w-full h-full object-cover">
+          class="w-full min-h-[180px] max-h-[460px] rounded-xl overflow-hidden relative bg-black/95 border border-gray-800 flex items-center justify-center group">
+          <img id="modalBannerImg" src="" alt="Preview" class="w-full max-h-[460px] object-contain cursor-zoom-in transition-all duration-300" onclick="openImageLightbox(this.src)" title="Nhấp để phóng to toàn màn hình">
           <div id="modalMediaContainer" class="w-full h-full hidden flex items-center justify-center"></div>
+          <button id="modalZoomBtn" type="button" onclick="openImageLightbox(document.getElementById('modalBannerImg').src)" class="absolute bottom-3 right-3 px-2.5 py-1.5 rounded-lg bg-black/80 hover:bg-emerald-500 hover:text-black text-gray-200 text-xs font-semibold backdrop-blur-md border border-gray-700 transition-all flex items-center gap-1.5 shadow-xl opacity-90 group-hover:opacity-100">
+            <i class="fa-solid fa-expand text-emerald-400 group-hover:text-black"></i> Phóng to xem trọn ảnh
+          </button>
         </div>
 
         <!-- Metadata row -->
@@ -683,6 +686,22 @@
                   <button type="button" onclick="resetImageEditor('up')" class="px-2 py-1 bg-gray-800 hover:bg-rose-950/60 text-gray-400 hover:text-rose-300 rounded-lg text-[11px] font-semibold ml-auto transition-all">
                     <i class="fa-solid fa-rotate-left mr-1"></i>Đặt lại
                   </button>
+                </div>
+
+                <!-- Căn Chỉnh Vị Trí Dọc Lên / Xuống (Pan Y) -->
+                <div class="space-y-1.5 p-2.5 bg-gray-900/80 rounded-xl border border-emerald-500/30">
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="text-emerald-400 font-semibold flex items-center gap-1.5">
+                      <i class="fa-solid fa-arrows-up-down"></i> Căn vị trí ảnh (Kéo Lên / Xuống):
+                    </span>
+                    <span id="upPosYVal" class="text-white font-mono font-bold bg-black/60 px-2 py-0.5 rounded border border-gray-700">50%</span>
+                  </div>
+                  <input type="range" id="upPosYSlider" min="0" max="100" value="50" oninput="updateEditorPosY('up', this.value)" class="w-full accent-emerald-500 cursor-pointer h-2 bg-gray-700 rounded-lg">
+                  <div class="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
+                    <button type="button" onclick="setEditorPosYPreset('up', 0)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-emerald-300 transition-all">⬆️ Đỉnh (0%)</button>
+                    <button type="button" onclick="setEditorPosYPreset('up', 50)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-emerald-300 font-bold transition-all">🎯 Giữa (50%)</button>
+                    <button type="button" onclick="setEditorPosYPreset('up', 100)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-emerald-300 transition-all">⬇️ Đáy (100%)</button>
+                  </div>
                 </div>
 
                 <!-- Bộ lọc màu phong cách GTA -->
@@ -1068,6 +1087,22 @@
                   </button>
                 </div>
 
+                <!-- Căn Chỉnh Vị Trí Dọc Lên / Xuống (Pan Y) -->
+                <div class="space-y-1.5 p-2.5 bg-gray-900/80 rounded-xl border border-amber-500/30">
+                  <div class="flex items-center justify-between text-[11px]">
+                    <span class="text-amber-400 font-semibold flex items-center gap-1.5">
+                      <i class="fa-solid fa-arrows-up-down"></i> Căn vị trí ảnh (Kéo Lên / Xuống):
+                    </span>
+                    <span id="editPosYVal" class="text-white font-mono font-bold bg-black/60 px-2 py-0.5 rounded border border-gray-700">50%</span>
+                  </div>
+                  <input type="range" id="editPosYSlider" min="0" max="100" value="50" oninput="updateEditorPosY('edit', this.value)" class="w-full accent-amber-500 cursor-pointer h-2 bg-gray-700 rounded-lg">
+                  <div class="flex items-center justify-between text-[10px] text-gray-400 pt-0.5">
+                    <button type="button" onclick="setEditorPosYPreset('edit', 0)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-amber-300 transition-all">⬆️ Đỉnh (0%)</button>
+                    <button type="button" onclick="setEditorPosYPreset('edit', 50)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-amber-300 font-bold transition-all">🎯 Giữa (50%)</button>
+                    <button type="button" onclick="setEditorPosYPreset('edit', 100)" class="px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-amber-300 transition-all">⬇️ Đáy (100%)</button>
+                  </div>
+                </div>
+
                 <!-- Bộ lọc màu 1-Click -->
                 <div class="space-y-1">
                   <span class="text-[11px] text-gray-400 font-medium block">Bộ lọc màu phong cách:</span>
@@ -1162,6 +1197,16 @@
         </h4>
         <p id="hudDesc" class="text-xs text-gray-300 truncate">File đã xuất hiện trên thư viện web.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- LIGHTBOX MODAL PHÓNG TO ẢNH FULL SCREEN -->
+  <div id="imageLightboxModal" class="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md hidden flex items-center justify-center p-3 sm:p-6 animate-fade-in" onclick="closeImageLightbox()">
+    <button type="button" onclick="closeImageLightbox()" class="absolute top-4 right-4 z-20 w-11 h-11 rounded-full bg-gray-900/90 hover:bg-rose-600 text-white flex items-center justify-center text-lg border border-gray-700 transition-all shadow-2xl cursor-pointer">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+    <div class="relative max-w-[96vw] max-h-[94vh] flex items-center justify-center overflow-auto" onclick="event.stopPropagation()">
+      <img id="lightboxImg" src="" alt="Full view" class="max-w-full max-h-[92vh] object-contain rounded-2xl shadow-2xl border border-gray-800">
     </div>
   </div>
 

@@ -48,6 +48,8 @@ function normalizeResource(r) {
     else if (r.preview.type === 'image' && r.preview.url) bannerImg = r.preview.url;
   }
 
+  const positionY = (r.preview && r.preview.positionY) || r.positionY || '50%';
+
   return {
     ...r,
     id: String(r.id),
@@ -57,6 +59,7 @@ function normalizeResource(r) {
     uploaderEmail: uploaderEmail,
     category: r.category || "gunsound",
     banner: bannerImg,
+    positionY: positionY,
     originalName: r.original_name || r.originalName || r.title,
     filename: r.filename || null,
     files: Array.isArray(r.files) ? r.files : [],
@@ -490,7 +493,7 @@ function renderGrid() {
     card.innerHTML = `
       <div>
         <div class="h-44 w-full relative overflow-hidden bg-black/60">
-          <img src="${bannerUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500">
+          <img src="${bannerUrl}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition-all duration-500" style="object-position: center ${item.positionY || '50%'};">
           <div class="absolute inset-0 bg-gradient-to-t from-[#121522] via-[#121522]/40 to-transparent"></div>
           
           <div class="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
@@ -784,14 +787,17 @@ window.openDetail = function(id) {
   // Media preview inside Detail Modal
   const displayBanner = item.banner || (item.preview && item.preview.type === 'image' ? item.preview.url : null) || (item.preview && item.preview.banner ? item.preview.banner : null) || cat.banner || "";
 
+  const zoomBtn = document.getElementById("modalZoomBtn");
+
   if (item.preview && (item.preview.type === "video" || item.preview.type === "audio" || item.preview.type === "youtube")) {
+    if (zoomBtn) zoomBtn.classList.add("hidden");
     modalBannerImg.classList.add("hidden");
     modalMediaContainer.classList.remove("hidden");
     modalMediaContainer.innerHTML = "";
 
     if (item.preview.type === "video") {
       modalMediaContainer.innerHTML = `
-        <video controls autoplay class="w-full h-full max-h-[280px] rounded-xl bg-black">
+        <video controls autoplay class="w-full h-full max-h-[380px] rounded-xl bg-black">
           <source src="${getMediaUrl(item.preview.url)}">
         </video>
       `;
@@ -807,14 +813,16 @@ window.openDetail = function(id) {
       `;
     } else if (item.preview.type === "youtube") {
       modalMediaContainer.innerHTML = `
-        <iframe class="w-full h-[280px] rounded-xl border-0" src="${getMediaUrl(item.preview.url)}?autoplay=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        <iframe class="w-full h-[320px] rounded-xl border-0" src="${getMediaUrl(item.preview.url)}?autoplay=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
       `;
     }
   } else {
+    if (zoomBtn) zoomBtn.classList.remove("hidden");
     modalMediaContainer.classList.add("hidden");
     modalMediaContainer.innerHTML = "";
     modalBannerImg.classList.remove("hidden");
     modalBannerImg.src = displayBanner;
+    modalBannerImg.style.objectPosition = `center ${item.positionY || '50%'}`;
   }
 
   detailModal.classList.remove("hidden");
@@ -914,6 +922,7 @@ const editorStates = {
     rotation: 0,
     flipH: false,
     fit: 'cover',
+    positionY: '50%',
     brightness: 100,
     contrast: 100,
     saturation: 100,
@@ -926,6 +935,7 @@ const editorStates = {
     rotation: 0,
     flipH: false,
     fit: 'cover',
+    positionY: '50%',
     brightness: 100,
     contrast: 100,
     saturation: 100,
@@ -936,7 +946,7 @@ const editorStates = {
   }
 };
 
-window.initImageEditor = function(target, imgSrc, rawFile = null) {
+window.initImageEditor = function(target, imgSrc, rawFile = null, initialPosY = '50%') {
   const st = editorStates[target];
   if (!st) return;
   st.imgSrc = imgSrc;
@@ -944,6 +954,7 @@ window.initImageEditor = function(target, imgSrc, rawFile = null) {
   st.rotation = 0;
   st.flipH = false;
   st.fit = 'cover';
+  st.positionY = initialPosY || '50%';
   st.brightness = 100;
   st.contrast = 100;
   st.saturation = 100;
@@ -955,7 +966,13 @@ window.initImageEditor = function(target, imgSrc, rawFile = null) {
   if (box) box.classList.remove('hidden');
   if (imgTag) imgTag.src = imgSrc;
 
+  const posSlider = document.getElementById(`${target}PosYSlider`);
+  if (posSlider) posSlider.value = parseInt(st.positionY) || 50;
+  const posVal = document.getElementById(`${target}PosYVal`);
+  if (posVal) posVal.textContent = st.positionY;
+
   updateEditorPreviewUI(target);
+  setupDragToPan(target);
 };
 
 window.updateEditorPreviewUI = function(target) {
@@ -972,6 +989,7 @@ window.updateEditorPreviewUI = function(target) {
   imgTag.style.filter = filterStr;
   imgTag.style.transform = `rotate(${st.rotation}deg) scaleX(${st.flipH ? -1 : 1})`;
   imgTag.style.objectFit = st.fit;
+  imgTag.style.objectPosition = `center ${st.positionY || '50%'}`;
 
   const bVal = document.getElementById(`${target}BrightVal`);
   const cVal = document.getElementById(`${target}ContrastVal`);
@@ -987,11 +1005,103 @@ window.updateEditorPreviewUI = function(target) {
   if (cSlider) cSlider.value = st.contrast;
   if (sSlider) sSlider.value = st.saturation;
 
+  const posSlider = document.getElementById(`${target}PosYSlider`);
+  if (posSlider) posSlider.value = parseInt(st.positionY) || 50;
+  const posVal = document.getElementById(`${target}PosYVal`);
+  if (posVal) posVal.textContent = st.positionY || '50%';
+
   const fitBtnText = document.getElementById(`${target}FitBtnText`);
   if (fitBtnText) {
     fitBtnText.textContent = st.fit === 'cover' ? 'Lấp đầy (Cover)' : 'Vừa vặn (Contain)';
   }
 };
+
+window.updateEditorPosY = function(target, val) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.positionY = `${val}%`;
+  st.isEdited = true;
+  const imgTag = document.getElementById(`${target}ImagePreviewTag`);
+  if (imgTag) {
+    imgTag.style.objectPosition = `center ${st.positionY}`;
+  }
+  const valTag = document.getElementById(`${target}PosYVal`);
+  if (valTag) valTag.textContent = `${val}%`;
+};
+
+window.setEditorPosYPreset = function(target, val) {
+  const slider = document.getElementById(`${target}PosYSlider`);
+  if (slider) slider.value = val;
+  updateEditorPosY(target, val);
+};
+
+// Cho phép bấm trực tiếp vào ảnh và kéo rê lên / xuống trực quan
+function setupDragToPan(target) {
+  const img = document.getElementById(`${target}ImagePreviewTag`);
+  if (!img || img._hasDragAttached) return;
+  img._hasDragAttached = true;
+  img.style.cursor = 'ns-resize';
+
+  let startY = 0;
+  let startPos = 50;
+  let isDragging = false;
+
+  const onStart = (clientY) => {
+    isDragging = true;
+    startY = clientY;
+    startPos = parseInt(editorStates[target]?.positionY) || 50;
+  };
+
+  const onMove = (clientY) => {
+    if (!isDragging) return;
+    const deltaY = clientY - startY;
+    let newPos = Math.round(startPos - (deltaY * 0.5));
+    newPos = Math.max(0, Math.min(100, newPos));
+    setEditorPosYPreset(target, newPos);
+  };
+
+  const onEnd = () => {
+    isDragging = false;
+  };
+
+  img.addEventListener('mousedown', (e) => { e.preventDefault(); onStart(e.clientY); });
+  window.addEventListener('mousemove', (e) => onMove(e.clientY));
+  window.addEventListener('mouseup', onEnd);
+
+  img.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) onStart(e.touches[0].clientY);
+  }, { passive: true });
+  window.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches.length === 1) onMove(e.touches[0].clientY);
+  }, { passive: true });
+  window.addEventListener('touchend', onEnd);
+}
+
+// Fullscreen Lightbox Xem Ảnh Nét Căng
+window.openImageLightbox = function(src) {
+  if (!src) return;
+  const modal = document.getElementById('imageLightboxModal');
+  const img = document.getElementById('lightboxImg');
+  if (modal && img) {
+    img.src = src;
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+};
+
+window.closeImageLightbox = function() {
+  const modal = document.getElementById('imageLightboxModal');
+  if (modal) {
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }
+};
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeImageLightbox();
+  }
+});
 
 window.rotateImageEditor = function(target, deg = 90) {
   const st = editorStates[target];
@@ -1084,13 +1194,15 @@ window.resetImageEditor = function(target) {
   st.rotation = 0;
   st.flipH = false;
   st.fit = 'cover';
+  st.positionY = '50%';
   st.brightness = 100;
   st.contrast = 100;
   st.saturation = 100;
   st.preset = 'none';
   st.isEdited = Boolean(st.rawFile);
   applyFilterPreset(target, 'none');
-  showToast("Đã đặt lại màu sắc và góc quay ban đầu!", "info");
+  setEditorPosYPreset(target, 50);
+  showToast("Đã đặt lại màu sắc, vị trí và góc quay ban đầu!", "info");
 };
 
 window.removeImageEditor = function(target) {
@@ -1359,6 +1471,7 @@ uploadForm.addEventListener("submit", async (e) => {
             originalName: exportedFile.name || 'cover.jpg',
             url: pUp.url,
             banner: bannerUrl,
+            positionY: ed.positionY || '50%',
             author: finalAuthor,
             author_avatar: currentAuthorAvatar,
             uploader_email: currentUploaderEmail
@@ -1531,6 +1644,7 @@ uploadForm.addEventListener("submit", async (e) => {
           originalName: exportedFile.name || 'cover.jpg',
           url: pUp.url,
           banner: bannerUrl,
+          positionY: ed.positionY || '50%',
           author: finalAuthor,
           author_avatar: currentAuthorAvatar,
           uploader_email: currentUploaderEmail
@@ -2318,9 +2432,11 @@ window.openEditModal = function(e, id) {
     editBannerFileName.textContent = 'Tải ảnh bìa mới từ máy tính';
   }
 
+  const currentPosY = item.positionY || (item.preview && item.preview.positionY) || '50%';
+
   // Khởi tạo Live Preview trong Edit Modal
   if (currentBanner) {
-    initImageEditor('edit', currentBanner, null);
+    initImageEditor('edit', currentBanner, null, currentPosY);
   } else {
     removeImageEditor('edit');
   }
@@ -2357,9 +2473,9 @@ window.handleSaveEditResource = async function(e) {
     saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG LƯU...</span>`;
   }
 
-  // Nếu người dùng có chỉnh sửa hoặc tải ảnh mới qua Live Editor
+  // Nếu người dùng có tải ảnh mới từ máy tính
   const ed = editorStates.edit;
-  if (ed && ed.imgSrc && ed.isEdited) {
+  if (ed && ed.imgSrc && ed.rawFile) {
     if (saveBtn) {
       saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG XỬ LÝ ẢNH BÌA...</span>`;
     }
@@ -2385,6 +2501,9 @@ window.handleSaveEditResource = async function(e) {
       previewObj.url = bannerUrl;
       previewObj.type = 'image';
     }
+  }
+  if (ed && ed.positionY) {
+    previewObj.positionY = ed.positionY;
   }
 
   const patchPayload = {
@@ -2430,8 +2549,14 @@ window.handleSaveEditResource = async function(e) {
     if (bannerUrl) {
       item.banner = bannerUrl;
     }
+    if (ed && ed.positionY) {
+      item.positionY = ed.positionY;
+    }
     if (item.preview) {
       item.preview.author = author;
+      if (ed && ed.positionY) {
+        item.preview.positionY = ed.positionY;
+      }
       if (bannerUrl) {
         item.preview.banner = bannerUrl;
         if (item.preview.type === 'image' || !item.preview.type) {
