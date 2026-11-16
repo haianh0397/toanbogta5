@@ -1323,18 +1323,140 @@ function initSupabaseRealtime() {
 }
 
 // ==========================================
-// HỆ THỐNG XÁC THỰC OAUTH (GOOGLE & DISCORD)
+// HỆ THỐNG XÁC THỰC OAUTH & GMAIL OTP 6 SỐ
 // Tự động nhận diện Tên Thật & Ảnh đại diện
 // ==========================================
+
+let currentOtpEmail = "";
 
 window.openAuthModal = function() {
   const modal = document.getElementById('authModal');
   if (modal) modal.classList.remove('hidden');
+  backToEmailStep();
 };
 
 window.closeAuthModal = function() {
   const modal = document.getElementById('authModal');
   if (modal) modal.classList.add('hidden');
+};
+
+window.backToEmailStep = function() {
+  const stepEmail = document.getElementById('otpStepEmail');
+  const stepCode = document.getElementById('otpStepCode');
+  if (stepEmail) stepEmail.classList.remove('hidden');
+  if (stepCode) stepCode.classList.add('hidden');
+  const emailInput = document.getElementById('authEmailInput');
+  if (emailInput) setTimeout(() => emailInput.focus(), 100);
+};
+
+window.handleSendOtp = async function(isResend = false) {
+  if (!supabaseClient) {
+    showToast("Đang kết nối dịch vụ Supabase, vui lòng đợi 1 giây...", "warning");
+    return;
+  }
+  const emailInput = document.getElementById('authEmailInput');
+  const email = (isResend && currentOtpEmail) ? currentOtpEmail : (emailInput ? emailInput.value.trim() : "");
+  
+  if (!email || !email.includes('@') || !email.includes('.')) {
+    showToast("Vui lòng nhập địa chỉ email/Gmail hợp lệ!", "warning");
+    if (emailInput) emailInput.focus();
+    return;
+  }
+
+  currentOtpEmail = email;
+  const sendBtn = document.getElementById('sendOtpBtn');
+  const resendBtn = document.getElementById('resendOtpBtn');
+  const oldText = sendBtn ? sendBtn.innerHTML : "";
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG GỬI MÃ ĐẾN GMAIL...</span>`;
+  }
+  if (resendBtn) resendBtn.textContent = "Đang gửi...";
+
+  try {
+    const { data, error } = await supabaseClient.auth.signInWithOtp({
+      email: email,
+      options: {
+        shouldCreateUser: true
+      }
+    });
+
+    if (error) throw error;
+
+    // Chuyển sang Bước 2: Nhập mã 6 chữ số
+    const stepEmail = document.getElementById('otpStepEmail');
+    const stepCode = document.getElementById('otpStepCode');
+    const sentToText = document.getElementById('sentToEmailText');
+    const otpInput = document.getElementById('authOtpInput');
+
+    if (sentToText) sentToText.textContent = email;
+    if (stepEmail) stepEmail.classList.add('hidden');
+    if (stepCode) stepCode.classList.remove('hidden');
+    if (otpInput) {
+      otpInput.value = "";
+      setTimeout(() => otpInput.focus(), 150);
+    }
+
+    showToast(`Đã gửi mã xác thực 6 số đến ${email}! Vui lòng mở Gmail để xem mã.`, "success");
+  } catch (err) {
+    console.error("Lỗi gửi OTP:", err);
+    showToast(`Không thể gửi mã: ` + (err.message || err), "error");
+  } finally {
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      sendBtn.innerHTML = oldText;
+    }
+    if (resendBtn) resendBtn.textContent = "Gửi lại mã";
+  }
+};
+
+window.handleVerifyOtp = async function() {
+  if (!supabaseClient) {
+    showToast("Đang kết nối dịch vụ Supabase...", "warning");
+    return;
+  }
+  const otpInput = document.getElementById('authOtpInput');
+  const token = otpInput ? otpInput.value.trim().replace(/\s+/g, '') : "";
+
+  if (!token || token.length < 6) {
+    showToast("Vui lòng nhập đủ 6 chữ số mã xác thực từ Gmail!", "warning");
+    if (otpInput) otpInput.focus();
+    return;
+  }
+
+  const verifyBtn = document.getElementById('verifyOtpBtn');
+  const oldText = verifyBtn ? verifyBtn.innerHTML : "";
+  if (verifyBtn) {
+    verifyBtn.disabled = true;
+    verifyBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG XÁC THỰC MÃ...</span>`;
+  }
+
+  try {
+    const { data, error } = await supabaseClient.auth.verifyOtp({
+      email: currentOtpEmail,
+      token: token,
+      type: 'email'
+    });
+
+    if (error) throw error;
+
+    if (data && data.user) {
+      extractUserData(data.user);
+      closeAuthModal();
+      showToast("Đăng nhập bằng mã OTP Gmail thành công! 🎉", "success");
+    } else {
+      showToast("Xác thực thành công!", "success");
+      closeAuthModal();
+    }
+  } catch (err) {
+    console.error("Lỗi xác minh OTP:", err);
+    showToast("Mã xác thực không đúng hoặc đã hết hạn. Vui lòng kiểm tra lại!", "error");
+  } finally {
+    if (verifyBtn) {
+      verifyBtn.disabled = false;
+      verifyBtn.innerHTML = oldText;
+    }
+  }
 };
 
 window.loginWithProvider = async function(provider) {
@@ -1380,7 +1502,7 @@ function updateAuthUI() {
     if (loginBtn) loginBtn.classList.add('hidden');
     if (userProfile) userProfile.classList.remove('hidden');
     if (userAvatar) {
-      userAvatar.src = currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=10b981&color=000`;
+      userAvatar.src = currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=10b981&color=000&bold=true`;
     }
     if (userName) userName.textContent = currentUser.name;
     if (upAuthorInput && (!upAuthorInput.value || upAuthorInput.value === 'Hải Anh')) {
@@ -1398,15 +1520,16 @@ function updateAuthUI() {
 function extractUserData(user) {
   if (!user) return;
   const meta = user.user_metadata || {};
-  // Nhận diện tên thật từ Google / Discord
+  // Nhận diện tên thật từ Google / Discord / Email
   let realName = meta.full_name || meta.name || meta.custom_claims?.global_name || meta.user_name || meta.preferred_username;
   if (!realName && user.email) {
-    realName = user.email.split('@')[0];
+    const prefix = user.email.split('@')[0];
+    realName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
   }
   if (!realName) realName = "Hải Anh";
 
-  // Nhận diện avatar thật
-  let realAvatar = meta.avatar_url || meta.picture || "";
+  // Nhận diện avatar thật hoặc UI Avatar
+  let realAvatar = meta.avatar_url || meta.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(realName)}&background=10b981&color=000&bold=true`;
 
   currentUser = {
     id: user.id,
@@ -1423,6 +1546,33 @@ function extractUserData(user) {
 
 async function initAuth() {
   updateAuthUI();
+
+  // Lắng nghe phím Enter và tự động submit khi gõ đủ 6 số
+  const authEmailInput = document.getElementById('authEmailInput');
+  if (authEmailInput) {
+    authEmailInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSendOtp();
+      }
+    });
+  }
+
+  const authOtpInput = document.getElementById('authOtpInput');
+  if (authOtpInput) {
+    authOtpInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleVerifyOtp();
+      }
+    });
+    authOtpInput.addEventListener('input', () => {
+      const val = authOtpInput.value.trim().replace(/\s+/g, '');
+      if (val.length === 6) {
+        handleVerifyOtp();
+      }
+    });
+  }
 
   if (!supabaseClient) return;
 
