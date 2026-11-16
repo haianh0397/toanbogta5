@@ -231,7 +231,7 @@ const CATEGORY_MAP = {
     banner: "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=800&q=80"
   },
   source: {
-    name: "Mã Nguồn & Script",
+    name: "Source GTA 5",
     icon: "fa-solid fa-code",
     color: "purple",
     badgeClass: "bg-purple-950/60 text-purple-400 border-purple-600/40",
@@ -853,7 +853,7 @@ function updateCategoryFormUI(cat) {
     selectedFileName.textContent = "Chọn File Dump / Crash log / File exe (ví dụ: .dmp / .log / .exe)";
   } else if (cat === "source") {
     file2Container.classList.add("hidden");
-    selectedFileName.textContent = "Chọn File Mã Nguồn / Script FiveM (ví dụ: .lua / .cs / .bat / .zip)";
+    selectedFileName.textContent = "Chọn File Source GTA 5 / Script (ví dụ: .zip / .rar / .lua / .cs / .bat)";
   } else {
     file2Container.classList.remove("hidden");
     selectedFileName.textContent = "Chọn File Mod chính từ máy";
