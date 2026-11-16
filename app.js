@@ -49,6 +49,8 @@ function normalizeResource(r) {
   }
 
   const positionY = (r.preview && r.preview.positionY) || r.positionY || '50%';
+  const isChunked = Boolean((r.preview && r.preview.is_chunked) || r.is_chunked || (r.files && r.files[0] && r.files[0].isChunked));
+  const chunks = (r.preview && r.preview.chunks) || r.chunks || (r.files && r.files[0] && r.files[0].chunks) || [];
 
   return {
     ...r,
@@ -60,6 +62,8 @@ function normalizeResource(r) {
     category: r.category || "gunsound",
     banner: bannerImg,
     positionY: positionY,
+    isChunked: isChunked,
+    chunks: chunks,
     originalName: r.original_name || r.originalName || r.title,
     filename: r.filename || null,
     files: Array.isArray(r.files) ? r.files : [],
@@ -89,54 +93,112 @@ function formatBytes(bytes, decimals = 1) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
-function uploadFileToSupabase(file, onProgress) {
-  return new Promise((resolve, reject) => {
-    if (!file) return reject(new Error("Không tìm thấy file để tải lên!"));
+const CHUNK_SIZE = 35 * 1024 * 1024; // 35 MB mỗi chunk (an toàn tuyệt đối dưới ngưỡng 50MB của Supabase)
 
-    // Giới hạn 50MB của Supabase Storage
-    if (file.size > 50 * 1024 * 1024) {
-      return reject(new Error(`File "${file.name}" (${formatBytes(file.size)}) vượt quá giới hạn 50 MB của Cloud lưu trữ trực tiếp! Hãy dùng tab "Dán Link Google Drive" để đăng tải file lớn không giới hạn.`));
-    }
+async function uploadFileToSupabase(file, onProgress) {
+  if (!file) throw new Error("Không tìm thấy file để tải lên!");
 
-    const fileExt = file.name.split('.').pop();
-    const safeName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+  const fileExt = file.name.split('.').pop();
+  const safeBase = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  // Trường hợp 1: File nhỏ <= 35MB -> Tải lên đơn lẻ nhanh chóng
+  if (file.size <= CHUNK_SIZE) {
+    const safeName = `${safeBase}.${fileExt}`;
     const uploadUrl = `${SUPABASE_URL}/storage/v1/object/mods/${safeName}`;
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', uploadUrl);
-    xhr.setRequestHeader('apikey', SUPABASE_KEY);
-    xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_KEY}`);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', uploadUrl);
+      xhr.setRequestHeader('apikey', SUPABASE_KEY);
+      xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_KEY}`);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
 
-    if (xhr.upload && typeof onProgress === 'function') {
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          onProgress(percent, event.loaded, event.total);
+      if (xhr.upload && typeof onProgress === 'function') {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            onProgress(percent, event.loaded, event.total);
+          }
+        };
+      }
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({
+            filename: safeName,
+            originalName: file.name,
+            size: formatBytes(file.size),
+            sizeBytes: file.size,
+            format: '.' + fileExt,
+            url: `${SUPABASE_URL}/storage/v1/object/public/mods/${safeName}`,
+            isChunked: false
+          });
+        } else {
+          reject(new Error(`Lỗi tải lên Cloud (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
         }
       };
-    }
 
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve({
-          filename: safeName,
-          originalName: file.name,
-          size: formatBytes(file.size),
-          sizeBytes: file.size,
-          format: '.' + fileExt,
-          url: `${SUPABASE_URL}/storage/v1/object/public/mods/${safeName}`
-        });
-      } else if (xhr.status === 413 || (xhr.responseText && xhr.responseText.includes('EntityTooLarge'))) {
-        reject(new Error(`File "${file.name}" quá lớn (${formatBytes(file.size)})! Giới hạn lưu trữ trực tiếp là 50MB. Vui lòng chuyển sang tab "Dán Link Google Drive" để tải lên file này.`));
-      } else {
-        reject(new Error(`Lỗi tải lên Cloud (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+      xhr.onerror = () => reject(new Error("Lỗi kết nối mạng khi tải file lên Cloud!"));
+      xhr.send(file);
+    });
+  }
+
+  // Trường hợp 2: File lớn > 35MB (ví dụ: Tiếng súng 163.6 MB, mod 200MB - 500MB)
+  // Tự động chia file thành các phần nhỏ 35MB tải lên Supabase để không bị giới hạn 50MB
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+  const chunkUrls = [];
+  const chunkFilenames = [];
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE;
+    const end = Math.min(start + CHUNK_SIZE, file.size);
+    const chunkBlob = file.slice(start, end);
+    const chunkName = `${safeBase}_part${i}.bin`;
+    const chunkUploadUrl = `${SUPABASE_URL}/storage/v1/object/mods/${chunkName}`;
+
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', chunkUploadUrl);
+      xhr.setRequestHeader('apikey', SUPABASE_KEY);
+      xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_KEY}`);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+
+      if (xhr.upload && typeof onProgress === 'function') {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const overallLoaded = start + event.loaded;
+            const overallPercent = Math.round((overallLoaded / file.size) * 100);
+            onProgress(overallPercent, overallLoaded, file.size, i + 1, totalChunks);
+          }
+        };
       }
-    };
 
-    xhr.onerror = () => reject(new Error("Lỗi kết nối mạng khi tải file lên Cloud!"));
-    xhr.send(file);
-  });
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          chunkFilenames.push(chunkName);
+          chunkUrls.push(`${SUPABASE_URL}/storage/v1/object/public/mods/${chunkName}`);
+          resolve();
+        } else {
+          reject(new Error(`Lỗi tải phần ${i + 1}/${totalChunks} (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+        }
+      };
+
+      xhr.onerror = () => reject(new Error(`Lỗi mạng khi tải phần ${i + 1}/${totalChunks}!`));
+      xhr.send(chunkBlob);
+    });
+  }
+
+  return {
+    filename: `${safeBase}.${fileExt}`,
+    originalName: file.name,
+    size: formatBytes(file.size),
+    sizeBytes: file.size,
+    format: '.' + fileExt,
+    url: chunkUrls[0],
+    isChunked: true,
+    chunkCount: totalChunks,
+    chunks: chunkUrls
+  };
 }
 
 function updateDownloadCount(id, count) {
@@ -670,11 +732,54 @@ async function downloadFileWithOriginalName(url, filename) {
   }
 }
 
+// Helper tải và tự động ghép các phần dữ liệu (cho file lớn > 35MB như Tiếng súng 163MB)
+async function downloadChunkedFile(chunks, filename) {
+  if (!chunks || chunks.length === 0) return;
+  const safeFilename = filename || "mod_gta5";
+  showToast(`⚡ Đang tải & tự động ghép ${chunks.length} phần của "${safeFilename}"... ⏳`, 'info');
+
+  try {
+    const buffers = [];
+    for (let i = 0; i < chunks.length; i++) {
+      showToast(`Đang tải phần ${i + 1}/${chunks.length} (${Math.round(((i + 1) / chunks.length) * 100)}%)... ⏳`, 'info');
+      const res = await fetch(chunks[i]);
+      if (!res.ok) throw new Error(`Không tải được phần ${i + 1}/${chunks.length}`);
+      const buf = await res.arrayBuffer();
+      buffers.push(buf);
+    }
+
+    const combinedBlob = new Blob(buffers, { type: 'application/octet-stream' });
+    const blobUrl = window.URL.createObjectURL(combinedBlob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = safeFilename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 3000);
+
+    showToast(`Đã tải & ghép hoàn tất: ${safeFilename}! 🔥`, 'success');
+  } catch (err) {
+    console.error("Lỗi download chunked file:", err);
+    showToast(`Lỗi khi tải file: ${err.message}`, 'error');
+  }
+}
+
 // Download handler
 window.downloadFile = function(event, id, mode = 'separate') {
   if (event) event.stopPropagation();
   const item = state.resources.find(r => r.id === id);
   if (!item) return;
+
+  // 0. Nếu là file lớn được lưu dạng chunks
+  if (item.isChunked && item.chunks && item.chunks.length > 0) {
+    const targetName = item.originalName || item.fileName || (item.title + (item.format ? (item.format.startsWith('.') ? item.format : '.' + item.format) : ''));
+    downloadChunkedFile(item.chunks, targetName);
+    item.downloads = (item.downloads || 0) + 1;
+    updateDownloadCount(item.id, item.downloads);
+    renderGrid();
+    return;
+  }
 
   const hasMultiple = (item.files && item.files.length > 1) || item.isMultiFile;
 
@@ -883,23 +988,16 @@ modalDownloadBtn.addEventListener("click", () => {
   }
 });
 
-// File upload selection label update & Kiểm tra giới hạn 50MB
+// File upload selection label update
 upFile.addEventListener("change", () => {
   if (upFile.files && upFile.files[0]) {
     const f = upFile.files[0];
-    selectedFileName.textContent = `File 1: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
+    selectedFileName.textContent = `File 1: ${f.name} (${formatBytes(f.size)})`;
     if (!upTitle.value) {
       upTitle.value = f.name.replace(/\.[^/.]+$/, "");
     }
-    if (f.size > 50 * 1024 * 1024) {
-      showToast(`⚠️ File "${f.name}" (${(f.size / (1024 * 1024)).toFixed(1)} MB) vượt giới hạn 50MB! Hãy dùng tab "Dán Link Google Drive".`, "warning");
-      setTimeout(() => {
-        if (confirm(`File "${f.name}" có dung lượng ${(f.size / (1024 * 1024)).toFixed(1)} MB (vượt quá mức 50MB của lưu trữ trực tiếp).\n\nBạn có muốn tự động chuyển sang tab "Dán Link Google Drive" để dán link tải tốc độ cao không?`)) {
-          switchUploadMode('drive');
-          const directSize = document.getElementById("upDirectSize");
-          if (directSize) directSize.value = `${(f.size / (1024 * 1024)).toFixed(1)} MB`;
-        }
-      }, 200);
+    if (f.size > 35 * 1024 * 1024) {
+      showToast(`⚡ File lớn (${formatBytes(f.size)}): Sẽ tự động tăng tốc tải đa luồng trực tiếp!`, "info");
     }
   }
 });
@@ -907,9 +1005,9 @@ upFile.addEventListener("change", () => {
 upFile2.addEventListener("change", () => {
   if (upFile2.files && upFile2.files[0]) {
     const f = upFile2.files[0];
-    selectedFileName2.textContent = `File 2: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
-    if (f.size > 50 * 1024 * 1024) {
-      showToast(`⚠️ File 2 "${f.name}" vượt giới hạn 50MB! Hãy dùng tab "Dán Link Google Drive".`, "warning");
+    selectedFileName2.textContent = `File 2: ${f.name} (${formatBytes(f.size)})`;
+    if (f.size > 35 * 1024 * 1024) {
+      showToast(`⚡ File 2 lớn (${formatBytes(f.size)}): Sẽ tự động tăng tốc tải đa luồng trực tiếp!`, "info");
     }
   }
 });
@@ -1591,9 +1689,9 @@ uploadForm.addEventListener("submit", async (e) => {
   const file1 = upFile.files[0];
   const file2 = upFile2.files && upFile2.files[0] ? upFile2.files[0] : null;
 
-  // Kiểm tra kích thước file: giới hạn 50MB của lưu trữ trực tiếp Cloud
-  if (file1.size > 50 * 1024 * 1024 || (file2 && file2.size > 50 * 1024 * 1024)) {
-    showToast("⚠️ File vượt quá giới hạn 50MB của lưu trữ trực tiếp! Hãy dùng tab 'Dán Link Google Drive'.", "warning");
+  // Chỉ cảnh báo nếu file quá lớn trên 1GB
+  if (file1.size > 1024 * 1024 * 1024 || (file2 && file2.size > 1024 * 1024 * 1024)) {
+    showToast("⚠️ File vượt quá 1 GB! Hãy dùng tab 'Dán Link Google Drive' để chia sẻ link tốc độ cao.", "warning");
     switchUploadMode('drive');
     const directSize = document.getElementById("upDirectSize");
     if (directSize) directSize.value = formatBytes(file1.size + (file2 ? file2.size : 0));
@@ -1606,12 +1704,16 @@ uploadForm.addEventListener("submit", async (e) => {
   submitUploadBtn.disabled = true;
 
   try {
-    // 1. Tải File 1 lên Supabase Storage với phần trăm thật theo thời gian thực
-    const uploaded1 = await uploadFileToSupabase(file1, (percent, loaded, total) => {
+    // 1. Tải File 1 lên Supabase Storage với phần trăm thật theo thời gian thực (hỗ trợ file lớn qua chunking)
+    const uploaded1 = await uploadFileToSupabase(file1, (percent, loaded, total, part, totalParts) => {
       const share = file2 ? 0.45 : 0.85;
       const cur = Math.round(percent * share);
       uploadProgressBar.style.width = `${cur}%`;
-      uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+      if (part && totalParts) {
+        uploadPercent.textContent = `${cur}% (Phần ${part}/${totalParts}: ${formatBytes(loaded)} / ${formatBytes(total)})`;
+      } else {
+        uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+      }
     });
 
     // 2. Nếu có File 2 đi kèm
@@ -1619,10 +1721,14 @@ uploadForm.addEventListener("submit", async (e) => {
     if (file2) {
       uploadProgressBar.style.width = "45%";
       uploadPercent.textContent = "45% (Đang tải File 2...)";
-      uploaded2 = await uploadFileToSupabase(file2, (percent, loaded, total) => {
+      uploaded2 = await uploadFileToSupabase(file2, (percent, loaded, total, part, totalParts) => {
         const cur = 45 + Math.round(percent * 0.4);
         uploadProgressBar.style.width = `${cur}%`;
-        uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+        if (part && totalParts) {
+          uploadPercent.textContent = `${cur}% (File 2 - Phần ${part}/${totalParts}: ${formatBytes(loaded)} / ${formatBytes(total)})`;
+        } else {
+          uploadPercent.textContent = `${cur}% (${formatBytes(loaded)} / ${formatBytes(total)})`;
+        }
       });
     }
 
@@ -1706,7 +1812,12 @@ uploadForm.addEventListener("submit", async (e) => {
       format: modFiles.map(f => f.format).join(' / '),
       description: upNote.value.trim() || "File mod GTA 5 tải trực tiếp từ thiết bị.",
       guide: upGuide.value.trim() || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.",
-      preview: previewObj,
+      preview: {
+        ...(previewObj || {}),
+        is_chunked: uploaded1.isChunked || false,
+        chunk_count: uploaded1.chunkCount || 1,
+        chunks: uploaded1.chunks || []
+      },
       banner: bannerUrl,
       downloads: 0,
       is_cloud_link: true,
