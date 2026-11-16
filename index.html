@@ -345,6 +345,15 @@
             class="text-xs leading-relaxed text-gray-300 bg-gray-900/40 p-3 rounded-xl border border-gray-800/80"></p>
         </div>
 
+        <!-- Danh sách file trong bộ mod (nếu có nhiều file) -->
+        <div id="modalFilesSection" class="hidden">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1.5">
+            <i class="fa-solid fa-layer-group text-amber-400"></i>
+            Danh sách file đi kèm trong gói mod
+          </h4>
+          <div id="modalFilesList" class="space-y-2"></div>
+        </div>
+
         <!-- Installation Guide -->
         <div>
           <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1.5">
@@ -1222,6 +1231,8 @@
     </div>
   </footer>
 
+  <!-- JSZip thư viện nén gộp file trực tiếp trên trình duyệt -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <!-- Supabase Realtime SDK & App Logic -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>

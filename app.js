@@ -662,12 +662,12 @@ function renderGrid() {
           <div class="flex items-center justify-between text-[10px] text-gray-400 pt-1 border-t border-gray-800/60">
             <span>Hoặc tải từng file rời:</span>
             <div class="flex items-center gap-2">
-              <button onclick="downloadSingleSubFile(event, '${item.files[0].filename}', '${item.files[0].originalName}')" class="text-cyan-400 hover:underline">
-                File 1 (.rpf)
+              <button onclick="downloadSubFile(event, '${item.id}', 0)" class="text-cyan-400 hover:underline font-semibold" title="Tải riêng File 1">
+                1. ${item.files[0]?.originalName ? (item.files[0].originalName.length > 15 ? item.files[0].originalName.substring(0, 15) + '...' : item.files[0].originalName) : 'File 1'}
               </button>
               <span>|</span>
-              <button onclick="downloadSingleSubFile(event, '${item.files[1].filename}', '${item.files[1].originalName}')" class="text-amber-400 hover:underline">
-                File 2 (.rpf)
+              <button onclick="downloadSubFile(event, '${item.id}', 1)" class="text-amber-400 hover:underline font-semibold" title="Tải riêng File 2">
+                2. ${item.files[1]?.originalName ? (item.files[1].originalName.length > 15 ? item.files[1].originalName.substring(0, 15) + '...' : item.files[1].originalName) : 'File 2'}
               </button>
             </div>
           </div>
@@ -766,7 +766,7 @@ async function downloadChunkedFile(chunks, filename) {
 }
 
 // Download handler
-window.downloadFile = function(event, id, mode = 'separate') {
+window.downloadFile = async function(event, id, mode = 'separate') {
   if (event) event.stopPropagation();
   const item = state.resources.find(r => r.id === id);
   if (!item) return;
@@ -783,29 +783,9 @@ window.downloadFile = function(event, id, mode = 'separate') {
 
   const hasMultiple = (item.files && item.files.length > 1) || item.isMultiFile;
 
-  // 1. Nếu là bộ nhiều file
+  // 1. Nếu là bộ nhiều file (ghép 2 file hoặc nhiều hơn)
   if (hasMultiple) {
-    if (API_BASE && mode === 'zip') {
-      window.location.href = `${API_BASE}/api/download-zip/${item.id}`;
-      item.downloads = (item.downloads || 0) + 1;
-      updateDownloadCount(item.id, item.downloads);
-      showToast(`Đang tải trọn gói ZIP (gộp cả 2 file: ${item.files[0]?.originalName} & ${item.files[1]?.originalName})! 📦`);
-      renderGrid();
-      return;
-    }
-
-    // Tải rời các file (giữ nguyên tên gốc)
-    showToast(`Đang tải trọn bộ ${item.files.length} file...`);
-    item.files.forEach((f, idx) => {
-      setTimeout(() => {
-        const subName = f.originalName || `${item.title}_part${idx + 1}${f.format || ''}`;
-        const fileUrl = f.url || (API_BASE ? `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(subName)}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`);
-        downloadFileWithOriginalName(fileUrl, subName);
-      }, idx * 1000);
-    });
-    item.downloads = (item.downloads || 0) + 1;
-    updateDownloadCount(item.id, item.downloads);
-    renderGrid();
+    await downloadAsZip(item);
     return;
   }
 
@@ -824,14 +804,89 @@ window.downloadFile = function(event, id, mode = 'separate') {
   showToast("Không tìm thấy link tải của file này!", "warning");
 };
 
-// Download single sub-file
-window.downloadSingleSubFile = function(event, filename, originalName) {
-  if (event) event.stopPropagation();
-  let fileUrl = `${SUPABASE_URL}/storage/v1/object/public/mods/${filename}`;
-  if (API_BASE) {
-    fileUrl = `${API_BASE}/api/download-file/${filename}/${encodeURIComponent(originalName)}`;
+// Đóng gói và tải trọn bộ file thành 1 file .ZIP duy nhất bằng JSZip trực tiếp trên trình duyệt
+async function downloadAsZip(item) {
+  if (!item || !item.files || item.files.length === 0) return;
+
+  if (typeof JSZip !== 'undefined') {
+    showToast(`⚡ Đang nén trọn bộ ${item.files.length} file vào 1 gói .ZIP duy nhất... ⏳`, 'info');
+    try {
+      const zip = new JSZip();
+
+      for (let i = 0; i < item.files.length; i++) {
+        const f = item.files[i];
+        const fname = f.originalName || `${item.title}_file${i + 1}${f.format || ''}`;
+        showToast(`Đang tải file ${i + 1}/${item.files.length}: "${fname}"... ⏳`, 'info');
+
+        let fileBuffer = null;
+        if (f.isChunked && f.chunks && f.chunks.length > 0) {
+          const chunkBuffers = [];
+          for (let c = 0; c < f.chunks.length; c++) {
+            showToast(`Đang nạp ${fname} (Phần ${c + 1}/${f.chunks.length})... ⏳`, 'info');
+            const res = await fetch(f.chunks[c]);
+            if (!res.ok) throw new Error(`Lỗi tải phần ${c + 1} của ${fname}`);
+            chunkBuffers.push(await res.arrayBuffer());
+          }
+          fileBuffer = new Blob(chunkBuffers);
+        } else {
+          const fileUrl = f.url || `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`;
+          const res = await fetch(fileUrl);
+          if (!res.ok) throw new Error(`Lỗi tải file ${fname}`);
+          fileBuffer = await res.arrayBuffer();
+        }
+
+        zip.file(fname, fileBuffer);
+      }
+
+      showToast(`Đang hoàn tất gói .ZIP cho bạn... ⏳`, 'info');
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+      const blobUrl = window.URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      const cleanTitle = (item.title || 'gop_mod').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const zipName = `${cleanTitle}.zip`;
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 4000);
+
+      showToast(`Đã tải thành công trọn gói: ${zipName}! 🔥`, 'success');
+      item.downloads = (item.downloads || 0) + 1;
+      updateDownloadCount(item.id, item.downloads);
+      renderGrid();
+      return;
+    } catch (err) {
+      console.warn("Lỗi nén JSZip client-side:", err);
+      showToast(`Lỗi tạo file ZIP: ${err.message}. Đang chuyển sang tải từng file...`, 'warning');
+    }
   }
-  downloadFileWithOriginalName(fileUrl, originalName || filename);
+
+  // Fallback nếu không có JSZip: Tải từng file tuần tự
+  for (let i = 0; i < item.files.length; i++) {
+    await downloadSubFile(null, item.id, i);
+  }
+}
+
+// Download single sub-file by index
+window.downloadSubFile = async function(event, id, index) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  const item = state.resources.find(r => r.id === id);
+  if (!item || !item.files || !item.files[index]) return;
+  const f = item.files[index];
+  const targetName = f.originalName || `${item.title}_file${index + 1}${f.format || ''}`;
+
+  if (f.isChunked && f.chunks && f.chunks.length > 0) {
+    await downloadChunkedFile(f.chunks, targetName);
+  } else {
+    const fileUrl = f.url || (API_BASE ? `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(targetName)}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`);
+    await downloadFileWithOriginalName(fileUrl, targetName);
+  }
+};
+
+window.downloadSingleSubFile = function(event, filename, originalName) {
+  if (event && event.stopPropagation) event.stopPropagation();
+  downloadFileWithOriginalName(`${SUPABASE_URL}/storage/v1/object/public/mods/${filename}`, originalName || filename);
 };
 
 // Delete real file
@@ -888,6 +943,38 @@ window.openDetail = function(id) {
   }
   modalDesc.textContent = item.desc || item.description || "Không có mô tả.";
   modalInstallGuide.textContent = item.guide || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.";
+
+  // Hiển thị danh sách file chi tiết trong modal nếu là bộ nhiều file
+  const filesSec = document.getElementById("modalFilesSection");
+  const filesList = document.getElementById("modalFilesList");
+  if (filesSec && filesList) {
+    if (item.files && item.files.length > 1) {
+      filesSec.classList.remove("hidden");
+      filesList.innerHTML = item.files.map((f, idx) => `
+        <div class="flex items-center justify-between p-2.5 bg-gray-900/60 rounded-xl border border-gray-800 text-xs">
+          <div class="flex items-center gap-2 truncate">
+            <span class="w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 font-bold flex items-center justify-center shrink-0">${idx + 1}</span>
+            <span class="font-mono text-gray-200 truncate font-semibold">${f.originalName || `${item.title}_part${idx+1}`}</span>
+            <span class="text-gray-500 text-[11px]">(${f.size || '--'})</span>
+          </div>
+          <button type="button" onclick="downloadSubFile(event, '${item.id}', ${idx})" class="px-2.5 py-1 bg-gray-800 hover:bg-emerald-500 hover:text-black text-emerald-400 rounded-lg font-semibold transition-all shrink-0 flex items-center gap-1 cursor-pointer">
+            <i class="fa-solid fa-download"></i> Tải file này
+          </button>
+        </div>
+      `).join('');
+    } else {
+      filesSec.classList.add("hidden");
+      filesList.innerHTML = "";
+    }
+  }
+
+  if (modalDownloadBtn) {
+    if (item.files && item.files.length > 1) {
+      modalDownloadBtn.innerHTML = `<i class="fa-solid fa-file-zipper"></i> <span>TẢI GỘP .ZIP (CẢ ${item.files.length} FILES)</span>`;
+    } else {
+      modalDownloadBtn.innerHTML = `<i class="fa-solid fa-download"></i> <span>TẢI XUỐNG NGAY</span>`;
+    }
+  }
 
   // Media preview inside Detail Modal
   const displayBanner = item.banner || (item.preview && item.preview.type === 'image' ? item.preview.url : null) || (item.preview && item.preview.banner ? item.preview.banner : null) || cat.banner || "";
