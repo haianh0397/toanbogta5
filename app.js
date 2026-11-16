@@ -150,6 +150,7 @@ const countGun = document.getElementById("countGun");
 const countReshade = document.getElementById("countReshade");
 const countDump = document.getElementById("countDump");
 const countSource = document.getElementById("countSource");
+const countSoftware = document.getElementById("countSoftware");
 
 // Detail Modal
 const detailModal = document.getElementById("detailModal");
@@ -236,6 +237,13 @@ const CATEGORY_MAP = {
     color: "purple",
     badgeClass: "bg-purple-950/60 text-purple-400 border-purple-600/40",
     banner: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80"
+  },
+  software: {
+    name: "Phần Mềm Hỗ Trợ",
+    icon: "fa-solid fa-screwdriver-wrench",
+    color: "blue",
+    badgeClass: "bg-blue-950/60 text-blue-400 border-blue-600/40",
+    banner: "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80"
   }
 };
 
@@ -364,6 +372,7 @@ function updateCounters() {
   countReshade.textContent = state.resources.filter(r => r.category === "reshade").length;
   countDump.textContent = state.resources.filter(r => r.category === "dump").length;
   countSource.textContent = state.resources.filter(r => r.category === "source").length;
+  if (countSoftware) countSoftware.textContent = state.resources.filter(r => r.category === "software").length;
   favBadge.textContent = state.favorites.length;
 }
 
@@ -854,6 +863,9 @@ function updateCategoryFormUI(cat) {
   } else if (cat === "source") {
     file2Container.classList.add("hidden");
     selectedFileName.textContent = "Chọn File Source GTA 5 / Script (ví dụ: .zip / .rar / .lua / .cs / .bat)";
+  } else if (cat === "software") {
+    file2Container.classList.add("hidden");
+    selectedFileName.textContent = "Chọn File Phần Mềm / Công Cụ (OpenIV, ScriptHookV, .exe, .zip, .rar...)";
   } else {
     file2Container.classList.remove("hidden");
     selectedFileName.textContent = "Chọn File Mod chính từ máy";
