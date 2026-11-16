@@ -397,24 +397,24 @@
           </div>
         </div>
 
-        <!-- BƯỚC 2: Nhập mã OTP 6 số (Ban đầu ẩn) -->
+        <!-- BƯỚC 2: Nhập mã OTP (Ban đầu ẩn) -->
         <div id="otpStepCode" class="hidden space-y-3.5">
           <div class="p-3 bg-emerald-950/40 border border-emerald-500/30 rounded-xl space-y-1">
             <p class="text-xs text-white">
-              Đã gửi mã xác nhận 6 số đến: <strong id="sentToEmailText" class="text-emerald-400 font-mono"></strong>
+              Đã gửi mã xác nhận đến: <strong id="sentToEmailText" class="text-emerald-400 font-mono"></strong>
             </p>
             <p class="text-[11px] text-gray-400">
-              Vui lòng mở Gmail trên máy hoặc điện thoại để copy mã 6 số (nhớ kiểm tra cả hộp thư chính và thư mục Spam/Rác).
+              Vui lòng mở Gmail để copy mã số được gửi về (nhớ kiểm tra cả hộp thư chính và thư rác/Spam).
             </p>
           </div>
 
           <div>
             <label class="block text-xs font-semibold text-gray-300 mb-1.5 flex items-center justify-between">
-              <span>Mã xác thực 6 chữ số</span>
-              <span class="text-[10px] text-gray-500">Nhập 6 số được gửi qua thư</span>
+              <span>Mã xác thực OTP</span>
+              <span class="text-[10px] text-gray-500">Nhập mã số trong thư</span>
             </label>
-            <input type="text" id="authOtpInput" maxlength="8" placeholder="ví dụ: 829104"
-              class="w-full bg-black/60 border-2 border-emerald-500/60 focus:border-emerald-400 rounded-xl px-4 py-3 text-white text-center font-mono font-black text-xl tracking-[0.3em] outline-none transition-all shadow-inner">
+            <input type="text" id="authOtpInput" maxlength="10" placeholder="Nhập mã xác thực..."
+              class="w-full bg-black/60 border-2 border-emerald-500/60 focus:border-emerald-400 rounded-xl px-4 py-3 text-white text-center font-mono font-black text-xl tracking-[0.25em] outline-none transition-all shadow-inner">
           </div>
 
           <button type="button" id="verifyOtpBtn" onclick="handleVerifyOtp()" class="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs sm:text-sm rounded-xl transition-all shadow-lg shadow-emerald-500/20 font-heading flex items-center justify-center gap-2">

@@ -1419,7 +1419,7 @@ window.handleVerifyOtp = async function() {
   const token = otpInput ? otpInput.value.trim().replace(/\s+/g, '') : "";
 
   if (!token || token.length < 6) {
-    showToast("Vui lòng nhập đủ 6 chữ số mã xác thực từ Gmail!", "warning");
+    showToast("Vui lòng nhập đủ mã xác thực từ Gmail!", "warning");
     if (otpInput) otpInput.focus();
     return;
   }
@@ -1560,6 +1560,7 @@ async function initAuth() {
 
   const authOtpInput = document.getElementById('authOtpInput');
   if (authOtpInput) {
+    let otpDebounceTimer = null;
     authOtpInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
@@ -1568,8 +1569,12 @@ async function initAuth() {
     });
     authOtpInput.addEventListener('input', () => {
       const val = authOtpInput.value.trim().replace(/\s+/g, '');
-      if (val.length === 6) {
-        handleVerifyOtp();
+      clearTimeout(otpDebounceTimer);
+      // Tự động kích hoạt khi người dùng gõ hoặc dán đủ 6 số hoặc 8 số
+      if (val.length === 6 || val.length === 8) {
+        otpDebounceTimer = setTimeout(() => {
+          handleVerifyOtp();
+        }, 350);
       }
     });
   }
