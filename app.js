@@ -1019,12 +1019,11 @@ uploadForm.addEventListener("submit", async (e) => {
 
   let finalTitle = upTitle.value.trim();
   if (!finalTitle) {
-    if (isDriveMode) {
-      finalTitle = "Gói Mod GTA 5 (Google Drive)";
+    if (upFile.files && upFile.files[0]) {
+      finalTitle = upFile.files[0].name.replace(/\.[^/.]+$/, "");
     } else {
-      const file1 = upFile.files[0];
-      const file2 = upFile2.files && upFile2.files[0] ? upFile2.files[0] : null;
-      finalTitle = file2 ? `${file1.name.replace(/\.[^/.]+$/, "")} + ${file2.name}` : file1.name.replace(/\.[^/.]+$/, "");
+      const catMeta = CATEGORY_MAP[upCategory.value];
+      finalTitle = catMeta ? catMeta.name : "Tài nguyên GTA 5";
     }
   }
 
@@ -1036,8 +1035,8 @@ uploadForm.addEventListener("submit", async (e) => {
   // TRƯỜNG HỢP 1: Dán link Google Drive (Đăng trực tiếp lên Cloud Supabase - Không cần Node.js)
   if (isDriveMode) {
     uploadProgressContainer.classList.remove("hidden");
-    uploadProgressBar.style.width = "40%";
-    uploadPercent.textContent = "40%";
+    uploadProgressBar.style.width = "30%";
+    uploadPercent.textContent = "30% (Đang xử lý link...)";
     submitUploadBtn.disabled = true;
 
     let finalDriveUrl = upDirectUrl.value.trim();
@@ -1046,46 +1045,72 @@ uploadForm.addEventListener("submit", async (e) => {
       finalDriveUrl = `https://drive.google.com/uc?export=download&id=${driveMatch[1]}`;
     }
 
-    let previewObj = null;
-    if (upYoutubeUrl.value.trim()) {
-      const ytVal = upYoutubeUrl.value.trim();
-      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-      const match = ytVal.match(regExp);
-      const ytId = (match && match[2].length === 11) ? match[2] : null;
-      if (ytId) {
-        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
-      } else {
-        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
-      }
-    } else {
-      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
-    }
-
-    const newItem = {
-      id: Date.now().toString(),
-      category: upCategory.value,
-      title: finalTitle,
-      author: finalAuthor,
-      author_avatar: currentAuthorAvatar,
-      original_name: finalTitle,
-      filename: null,
-      files: [],
-      is_multi_file: false,
-      file_count: 1,
-      size: upDirectSize.value.trim() || "Google Drive",
-      version: upVersion.value.trim() || "v1.0",
-      format: upDirectFormat.value.trim() || ".rar",
-      description: upNote.value.trim() || "File mod GTA 5 dung lượng lớn được lưu trên Google Drive để tải mượt mà 24/7.",
-      guide: upGuide.value.trim() || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.",
-      preview: previewObj,
-      downloads: 0,
-      is_cloud_link: true,
-      direct_url: finalDriveUrl
-    };
-
     try {
-      uploadProgressBar.style.width = "80%";
-      uploadPercent.textContent = "80%";
+      // Xử lý Preview (Ảnh / Video demo tải kèm) trong chế độ Google Drive
+      let previewObj = null;
+      let bannerUrl = "";
+
+      if (upPreviewFile.files && upPreviewFile.files[0]) {
+        uploadProgressBar.style.width = "60%";
+        uploadPercent.textContent = "60% (Đang tải ảnh / video minh họa lên Cloud...)";
+        const pFile = upPreviewFile.files[0];
+        const pUp = await uploadFileToSupabase(pFile);
+        const ext = pFile.name.split('.').pop().toLowerCase();
+        const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
+        const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
+        const mediaType = isVideo ? 'video' : (isAudio ? 'audio' : 'image');
+        if (mediaType === 'image') {
+          bannerUrl = pUp.url;
+        }
+        previewObj = {
+          type: mediaType,
+          filename: pUp.filename,
+          originalName: pFile.name,
+          url: pUp.url,
+          banner: bannerUrl,
+          author: finalAuthor,
+          author_avatar: currentAuthorAvatar,
+          uploader_email: currentUploaderEmail
+        };
+      } else if (upYoutubeUrl.value.trim()) {
+        const ytVal = upYoutubeUrl.value.trim();
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = ytVal.match(regExp);
+        const ytId = (match && match[2].length === 11) ? match[2] : null;
+        if (ytId) {
+          previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
+        } else {
+          previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
+        }
+      } else {
+        previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
+      }
+
+      const newItem = {
+        id: Date.now().toString(),
+        category: upCategory.value,
+        title: finalTitle,
+        author: finalAuthor,
+        author_avatar: currentAuthorAvatar,
+        original_name: finalTitle,
+        filename: null,
+        files: [],
+        is_multi_file: false,
+        file_count: 1,
+        size: upDirectSize.value.trim() || "Google Drive",
+        version: upVersion.value.trim() || "v1.0",
+        format: upDirectFormat.value.trim() || ".rar",
+        description: upNote.value.trim() || "File mod GTA 5 dung lượng lớn được lưu trên Google Drive để tải mượt mà 24/7.",
+        guide: upGuide.value.trim() || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.",
+        preview: previewObj,
+        banner: bannerUrl,
+        downloads: 0,
+        is_cloud_link: true,
+        direct_url: finalDriveUrl
+      };
+
+      uploadProgressBar.style.width = "85%";
+      uploadPercent.textContent = "85% (Đang lưu bài đăng...)";
 
       const supRes = await saveResourceToSupabase(newItem);
 
