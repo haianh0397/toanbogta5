@@ -33,6 +33,59 @@ function saveDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
+// Supabase Cloud Sync
+const SUPABASE_URL = "https://xsjrdsiiokptahuzcwgl.supabase.co";
+const SUPABASE_KEY = "sb_publishable_GEgx9R3u38FSvqK1Y5Gu3w_23b2ynuv";
+
+async function syncUploadToSupabase(entry) {
+  try {
+    const payload = {
+      id: String(entry.id),
+      category: entry.category,
+      title: entry.title,
+      original_name: entry.originalName || entry.title,
+      filename: entry.filename || null,
+      files: entry.files || [],
+      is_multi_file: entry.isMultiFile || false,
+      file_count: entry.fileCount || 1,
+      size: entry.size || "--",
+      version: entry.version || "v1.0",
+      format: entry.format || ".rar",
+      description: entry.description || "",
+      guide: entry.guide || "",
+      preview: entry.preview || null,
+      downloads: entry.downloads || 0,
+      is_cloud_link: entry.isCloudLink || false,
+      direct_url: entry.directUrl || null
+    };
+    await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (e) {
+    console.error("[SUPABASE SYNC ERR]", e.message);
+  }
+}
+
+async function syncDeleteToSupabase(id) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+  } catch (e) {
+    console.error("[SUPABASE DELETE ERR]", e.message);
+  }
+}
+
 // Helper: Format bytes to human readable size
 function formatBytes(bytes) {
   if (bytes === 0) return '0 Bytes';
@@ -215,6 +268,7 @@ app.post('/api/upload', upload.any(), (req, res) => {
     const db = getDB();
     db.unshift(newEntry);
     saveDB(db);
+    syncUploadToSupabase(newEntry).catch(() => {});
 
     console.log(`[UPLOAD] Đã lưu: ${newEntry.title} (${newEntry.size}) - Preview: ${previewData ? previewData.type : 'none'}`);
     res.json({ success: true, item: newEntry });
@@ -336,6 +390,7 @@ app.delete('/api/files/:id', (req, res) => {
 
   db.splice(index, 1);
   saveDB(db);
+  syncDeleteToSupabase(item.id).catch(() => {});
 
   console.log(`[DELETE] Đã xóa: ${item.title}`);
   res.json({ success: true });

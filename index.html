@@ -208,56 +208,56 @@
   </main>
 
   <!-- Modal: Detail View -->
-  <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 mobile-scroll">
-    <div class="bg-[#121522] border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl relative overflow-hidden my-auto">
+  <div id="detailModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-start sm:items-center justify-center p-2.5 sm:p-4 overflow-y-auto mobile-scroll py-6 sm:py-8">
+    <div class="bg-[#121522] border border-gray-800 rounded-2xl w-full max-w-2xl max-h-[82dvh] sm:max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden my-auto">
       <!-- Modal Header -->
-      <div class="p-6 border-b border-gray-800 flex items-start justify-between gap-4">
+      <div class="p-4 sm:p-6 border-b border-gray-800 flex items-start justify-between gap-4 shrink-0 bg-[#121522]">
         <div class="flex items-center gap-3.5">
-          <div id="modalIconBox" class="w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg"></div>
+          <div id="modalIconBox" class="w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-lg shrink-0"></div>
           <div>
             <div class="flex items-center gap-2 mb-1">
               <span id="modalCategoryBadge" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border"></span>
               <span id="modalVersion" class="text-xs text-gray-400">v1.0</span>
             </div>
-            <h3 id="modalTitle" class="text-lg font-bold text-white font-heading"></h3>
+            <h3 id="modalTitle" class="text-base sm:text-lg font-bold text-white font-heading"></h3>
           </div>
         </div>
-        <button id="closeDetailModal" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-all">
+        <button id="closeDetailModal" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-all shrink-0">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
       <!-- Modal Body -->
-      <div class="p-6 overflow-y-auto custom-scroll space-y-6 flex-1 text-sm text-gray-300">
+      <div class="p-4 sm:p-6 overflow-y-auto mobile-scroll custom-scroll space-y-5 flex-1 text-sm text-gray-300">
         <!-- Banner/Preview / Video Player -->
-        <div id="modalBannerContainer" class="w-full min-h-[180px] max-h-[300px] rounded-xl overflow-hidden relative bg-black/80 border border-gray-800 flex items-center justify-center">
+        <div id="modalBannerContainer" class="w-full min-h-[160px] max-h-[280px] rounded-xl overflow-hidden relative bg-black/80 border border-gray-800 flex items-center justify-center">
           <img id="modalBannerImg" src="" alt="Preview" class="w-full h-full object-cover">
           <div id="modalMediaContainer" class="w-full h-full hidden flex items-center justify-center"></div>
         </div>
 
         <!-- Metadata row -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-900/60 p-3.5 rounded-xl border border-gray-800">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-gray-900/60 p-3 rounded-xl border border-gray-800">
           <div>
-            <span class="block text-[11px] text-gray-500 uppercase font-semibold">Dung lượng</span>
+            <span class="block text-[10px] text-gray-500 uppercase font-semibold">Dung lượng</span>
             <span id="modalSize" class="text-xs font-bold text-white">--</span>
           </div>
           <div>
-            <span class="block text-[11px] text-gray-500 uppercase font-semibold">Lượt tải</span>
+            <span class="block text-[10px] text-gray-500 uppercase font-semibold">Lượt tải</span>
             <span id="modalDownloads" class="text-xs font-bold text-emerald-400">--</span>
           </div>
           <div>
-            <span class="block text-[11px] text-gray-500 uppercase font-semibold">Định dạng</span>
+            <span class="block text-[10px] text-gray-500 uppercase font-semibold">Định dạng</span>
             <span id="modalFormat" class="text-xs font-bold text-cyan-400">--</span>
           </div>
           <div>
-            <span class="block text-[11px] text-gray-500 uppercase font-semibold">Tác giả</span>
+            <span class="block text-[10px] text-gray-500 uppercase font-semibold">Tác giả</span>
             <span id="modalAuthor" class="text-xs font-bold text-gray-200">--</span>
           </div>
         </div>
 
         <!-- Description -->
         <div>
-          <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-1.5">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1.5">
             <i class="fa-solid fa-circle-info text-emerald-400"></i>
             Mô tả chi tiết
           </h4>
@@ -266,7 +266,7 @@
 
         <!-- Installation Guide -->
         <div>
-          <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center gap-1.5">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1.5">
             <i class="fa-solid fa-screwdriver-wrench text-cyan-400"></i>
             Hướng dẫn cài đặt
           </h4>
@@ -275,12 +275,12 @@
       </div>
 
       <!-- Modal Footer -->
-      <div class="p-4 border-t border-gray-800 bg-[#0f121d] flex items-center justify-between gap-3">
-        <button id="modalFavBtn" class="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-pink-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-2">
+      <div class="p-3.5 sm:p-4 border-t border-gray-800 bg-[#0f121d] flex items-center justify-between gap-3 shrink-0">
+        <button id="modalFavBtn" class="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-pink-400 rounded-xl text-xs font-semibold transition-all flex items-center gap-2">
           <i class="fa-regular fa-heart"></i>
           <span>Yêu thích</span>
         </button>
-        <button id="modalDownloadBtn" class="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 font-heading tracking-wider">
+        <button id="modalDownloadBtn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-500/20 flex items-center gap-2 font-heading tracking-wider">
           <i class="fa-solid fa-download"></i>
           <span>TẢI XUỐNG NGAY</span>
         </button>
@@ -289,194 +289,201 @@
   </div>
 
   <!-- Modal: Media Player (Video / Audio Demo) -->
-  <div id="mediaModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-2 sm:p-4 mobile-scroll">
-    <div class="bg-[#10131f] border border-gray-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl relative flex flex-col my-auto max-h-[92vh]">
-      <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#151928]">
+  <div id="mediaModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-start sm:items-center justify-center p-2.5 sm:p-4 overflow-y-auto mobile-scroll py-6 sm:py-8">
+    <div class="bg-[#10131f] border border-gray-800 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl relative flex flex-col my-auto max-h-[82dvh] sm:max-h-[90vh]">
+      <div class="p-4 border-b border-gray-800 flex items-center justify-between bg-[#151928] shrink-0">
         <div class="flex items-center gap-2.5">
-          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm">
+          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm shrink-0">
             <i class="fa-solid fa-play"></i>
           </span>
           <h3 id="mediaModalTitle" class="font-heading font-bold text-white text-sm sm:text-base truncate max-w-md">Video / Audio Preview</h3>
         </div>
-        <button id="closeMediaModal" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-all">
+        <button id="closeMediaModal" class="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center transition-all shrink-0">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
       <!-- Video / Audio Player Viewport -->
-      <div id="mediaModalBody" class="w-full bg-black min-h-[300px] sm:min-h-[420px] flex items-center justify-center p-2">
+      <div id="mediaModalBody" class="w-full bg-black min-h-[220px] sm:min-h-[420px] flex items-center justify-center p-2 overflow-y-auto mobile-scroll flex-1">
         <!-- Rendered dynamically -->
       </div>
     </div>
   </div>
 
   <!-- Modal: Upload New Resource -->
-  <div id="uploadModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 mobile-scroll">
-    <div class="bg-[#121522] border border-gray-800 rounded-2xl w-full max-w-lg p-4 sm:p-6 shadow-2xl relative max-h-[92vh] mobile-scroll custom-scroll my-auto">
-      <button id="closeUploadModal" class="absolute right-3.5 top-3.5 w-8 h-8 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center text-sm transition-all z-10">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-
-      <div class="flex items-center gap-3 mb-4">
-        <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-          <i class="fa-solid fa-cloud-arrow-up"></i>
+  <div id="uploadModal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 hidden flex items-start sm:items-center justify-center p-2.5 sm:p-4 overflow-y-auto mobile-scroll py-6 sm:py-8">
+    <div class="bg-[#121522] border border-gray-800 rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-[82dvh] sm:max-h-[90vh] my-auto overflow-hidden">
+      <!-- Modal Header (Cố định ở trên) -->
+      <div class="p-4 sm:p-5 border-b border-gray-800 flex items-center justify-between shrink-0 bg-[#121522] z-10">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-white font-heading">Thêm File Mới Vào Thư Viện</h3>
+            <p class="text-[11px] text-gray-400">Đăng tải file tiếng súng, reshade, crash dump hoặc mã nguồn</p>
+          </div>
         </div>
-        <div>
-          <h3 class="text-base font-bold text-white font-heading">Thêm File Mới Vào Thư Viện</h3>
-          <p class="text-xs text-gray-400">Đăng tải file tiếng súng, reshade, crash dump hoặc mã nguồn</p>
-        </div>
+        <button id="closeUploadModal" class="w-8 h-8 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center text-sm transition-all shrink-0">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
 
-      <form id="uploadForm" class="space-y-3.5 text-xs">
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label class="block font-semibold text-gray-300">Chuyên mục lưu trữ <span class="text-red-400">*</span></label>
-            <span id="categoryNoticeBadge" class="text-[11px] font-semibold text-emerald-400 hidden"></span>
-          </div>
-          <select id="upCategory" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500 cursor-pointer transition-all">
-            <option value="gunsound">🔊 Tiếng súng GTA 5 (Hỗ trợ ghép 2 file tải cùng lúc)</option>
-            <option value="reshade">🎨 ReShade Đồ Họa (ReShade Presets)</option>
-            <option value="dump">🛠️ File Dump & Phân tích lỗi (Crash Dumps)</option>
-            <option value="source">📜 Mã Nguồn & Script FiveM (Mod Sources)</option>
-          </select>
-        </div>
-
-        <!-- Mode Switch: Tải file từ máy VS Dán Link Google Drive -->
-        <div class="flex items-center gap-1.5 p-1 bg-gray-900 rounded-xl border border-gray-800">
-          <button type="button" id="tabModeLocal" onclick="switchUploadMode('local')" class="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-emerald-500 text-black flex items-center justify-center gap-1.5">
-            <i class="fa-solid fa-hard-drive"></i>
-            <span>Tải File Từ Máy</span>
-          </button>
-          <button type="button" id="tabModeDrive" onclick="switchUploadMode('drive')" class="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-gray-400 hover:text-white flex items-center justify-center gap-1.5">
-            <i class="fa-brands fa-google-drive text-amber-400"></i>
-            <span>Dán Link Google Drive (File 6.6GB)</span>
-          </button>
-        </div>
-
-        <!-- Section 1: Tải File Từ Máy Tính (Local) -->
-        <div id="localFilesSection" class="space-y-3.5">
-          <!-- File Upload Box 1 (Chính) -->
-          <div class="border-2 border-dashed border-gray-700 hover:border-emerald-500 rounded-xl p-3.5 text-center cursor-pointer transition-all bg-gray-900/60" id="dropArea1">
-            <input type="file" id="upFile" class="hidden">
-            <label for="upFile" class="cursor-pointer block">
-              <i class="fa-solid fa-file-audio text-xl text-emerald-400 mb-1 block"></i>
-              <span id="selectedFileName" class="font-semibold text-white block">Chọn File 1 (File chính: ví dụ weapons.awc / .oiv)</span>
-              <span class="text-[10px] text-gray-500 block mt-0.5">Nhấp vào đây để chọn file từ máy</span>
-            </label>
-          </div>
-
-          <!-- File Upload Box 2 (Dành cho tiếng súng hoặc file đi kèm) -->
-          <div class="border-2 border-dashed border-gray-700 hover:border-cyan-500 rounded-xl p-3.5 text-center cursor-pointer transition-all bg-gray-900/60" id="file2Container">
-            <input type="file" id="upFile2" class="hidden">
-            <label for="upFile2" class="cursor-pointer block">
-              <i class="fa-solid fa-file-shield text-xl text-cyan-400 mb-1 block"></i>
-              <span id="selectedFileName2" class="font-semibold text-cyan-300 block">Chọn File 2 đi kèm (ví dụ: resident.awc / weapons.dat / file phụ)</span>
-              <span class="text-[10px] text-gray-500 block mt-0.5">Tùy chọn: Chọn thêm file thứ 2 để khi bấm Tải sẽ tự động tải cả 2 file cùng lúc</span>
-            </label>
-          </div>
-        </div>
-
-        <!-- Section 2: Dán Link Google Drive / Link Trực Tiếp (Cloud) -->
-        <div id="cloudLinkSection" class="hidden space-y-3 p-3.5 bg-gradient-to-br from-gray-900 via-gray-900 to-amber-950/20 rounded-xl border border-amber-500/30">
-          <div class="flex items-center justify-between">
-            <label class="block font-semibold text-amber-300 text-xs flex items-center gap-1.5">
-              <i class="fa-brands fa-google-drive text-amber-400 text-sm"></i>
-              <span>Link Google Drive / Tải Trực Tiếp</span>
-            </label>
-            <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">Tắt máy vẫn tải được 24/7</span>
-          </div>
-
-          <input type="url" id="upDirectUrl" placeholder="Dán link Google Drive: https://drive.google.com/file/d/.../view"
-            class="w-full bg-black/70 border border-amber-500/50 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 outline-none focus:border-amber-400 text-xs font-mono">
-
-          <p class="text-[10px] text-gray-400 leading-relaxed">
-            💡 <strong class="text-white">Mẹo:</strong> Nhớ bật quyền <em class="text-emerald-400">"Bất kỳ ai có liên kết đều có thể xem/tải"</em> trên Google Drive. Web sẽ tự chuyển thành link tải tốc độ cao!
-          </p>
-
-          <div class="grid grid-cols-2 gap-3 pt-1">
-            <div>
-              <label class="block font-medium text-gray-400 text-[11px] mb-1">Dung lượng file</label>
-              <input type="text" id="upDirectSize" placeholder="Ví dụ: 6.6 GB"
-                class="w-full bg-black/60 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-emerald-500">
+      <!-- Form wraps Body + Footer -->
+      <form id="uploadForm" class="flex flex-col flex-1 overflow-hidden m-0">
+        <!-- Modal Scrollable Content (Cuộn mượt mà bên trong, không bao giờ mất nút) -->
+        <div class="p-4 sm:p-6 overflow-y-auto mobile-scroll custom-scroll flex-1 space-y-3.5 pb-6">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label class="block font-semibold text-gray-300">Chuyên mục lưu trữ <span class="text-red-400">*</span></label>
+              <span id="categoryNoticeBadge" class="text-[11px] font-semibold text-emerald-400 hidden"></span>
             </div>
-            <div>
-              <label class="block font-medium text-gray-400 text-[11px] mb-1">Định dạng file</label>
-              <input type="text" id="upDirectFormat" placeholder="Ví dụ: .rar / .zip / .rpf / .exe"
-                class="w-full bg-black/60 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-emerald-500">
-            </div>
+            <select id="upCategory" required class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500 cursor-pointer transition-all">
+              <option value="gunsound">🔊 Tiếng súng GTA 5 (Hỗ trợ ghép 2 file tải cùng lúc)</option>
+              <option value="reshade">🎨 ReShade Đồ Họa (ReShade Presets)</option>
+              <option value="dump">🛠️ File Dump & Phân tích lỗi (Crash Dumps)</option>
+              <option value="source">📜 Mã Nguồn & Script FiveM (Mod Sources)</option>
+            </select>
           </div>
-        </div>
 
-        <!-- Section Thêm Video / Âm thanh nghe thử -->
-        <div class="p-3 bg-gray-900/90 rounded-xl border border-gray-700/80 space-y-2.5">
-          <label class="block font-semibold text-emerald-400 text-xs flex items-center gap-1.5">
-            <i class="fa-solid fa-photo-film"></i>
-            Thêm Video / Âm thanh nghe thử (Preview trước khi tải)
-          </label>
-          <p class="text-[11px] text-gray-400">Tải video clip bắn súng hoặc dán link YouTube để bạn xem/nghe thử tiếng súng trước khi bấm tải.</p>
-          
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <!-- Upload Video / Audio file -->
-            <div class="border border-dashed border-gray-700 hover:border-emerald-500 rounded-lg p-2.5 text-center cursor-pointer bg-black/40 transition-all">
-              <input type="file" id="upPreviewFile" accept="video/*,audio/*,image/*" class="hidden">
-              <label for="upPreviewFile" class="cursor-pointer block text-left">
-                <span class="text-[11px] font-semibold text-white block flex items-center gap-1.5">
-                  <i class="fa-solid fa-file-video text-amber-400"></i>
-                  <span id="selectedPreviewFileName" class="truncate">Tải file Video / Audio / Ảnh</span>
-                </span>
-                <span class="text-[10px] text-gray-500 block truncate">.mp4, .mp3, .wav, .jpg, .png</span>
+          <!-- Mode Switch: Tải file từ máy VS Dán Link Google Drive -->
+          <div class="flex items-center gap-1.5 p-1 bg-gray-900 rounded-xl border border-gray-800">
+            <button type="button" id="tabModeLocal" onclick="switchUploadMode('local')" class="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all bg-emerald-500 text-black flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-hard-drive"></i>
+              <span>Tải File Từ Máy</span>
+            </button>
+            <button type="button" id="tabModeDrive" onclick="switchUploadMode('drive')" class="flex-1 py-1.5 px-3 rounded-lg text-[11px] font-bold transition-all text-gray-400 hover:text-white flex items-center justify-center gap-1.5">
+              <i class="fa-brands fa-google-drive text-amber-400"></i>
+              <span>Dán Link Google Drive (File 6.6GB)</span>
+            </button>
+          </div>
+
+          <!-- Section 1: Tải File Từ Máy Tính (Local) -->
+          <div id="localFilesSection" class="space-y-3.5">
+            <!-- File Upload Box 1 (Chính) -->
+            <div class="border-2 border-dashed border-gray-700 hover:border-emerald-500 rounded-xl p-3.5 text-center cursor-pointer transition-all bg-gray-900/60" id="dropArea1">
+              <input type="file" id="upFile" class="hidden">
+              <label for="upFile" class="cursor-pointer block">
+                <i class="fa-solid fa-file-audio text-xl text-emerald-400 mb-1 block"></i>
+                <span id="selectedFileName" class="font-semibold text-white block">Chọn File 1 (File chính: ví dụ weapons.awc / .oiv)</span>
+                <span class="text-[10px] text-gray-500 block mt-0.5">Nhấp vào đây để chọn file từ máy</span>
               </label>
             </div>
 
-            <!-- YouTube Video URL -->
-            <div>
-              <div class="relative">
-                <input type="url" id="upYoutubeUrl" placeholder="Hoặc dán link YouTube..." 
-                  class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 pl-8 text-white text-[11px] outline-none focus:border-red-500">
-                <i class="fa-brands fa-youtube absolute left-2.5 top-2.5 text-red-500 text-xs"></i>
+            <!-- File Upload Box 2 (Dành cho tiếng súng hoặc file đi kèm) -->
+            <div class="border-2 border-dashed border-gray-700 hover:border-cyan-500 rounded-xl p-3.5 text-center cursor-pointer transition-all bg-gray-900/60" id="file2Container">
+              <input type="file" id="upFile2" class="hidden">
+              <label for="upFile2" class="cursor-pointer block">
+                <i class="fa-solid fa-file-shield text-xl text-cyan-400 mb-1 block"></i>
+                <span id="selectedFileName2" class="font-semibold text-cyan-300 block">Chọn File 2 đi kèm (ví dụ: resident.awc / weapons.dat / file phụ)</span>
+                <span class="text-[10px] text-gray-500 block mt-0.5">Tùy chọn: Chọn thêm file thứ 2 để khi bấm Tải sẽ tự động tải cả 2 file cùng lúc</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Section 2: Dán Link Google Drive / Link Trực Tiếp (Cloud) -->
+          <div id="cloudLinkSection" class="hidden space-y-3 p-3.5 bg-gradient-to-br from-gray-900 via-gray-900 to-amber-950/20 rounded-xl border border-amber-500/30">
+            <div class="flex items-center justify-between">
+              <label class="block font-semibold text-amber-300 text-xs flex items-center gap-1.5">
+                <i class="fa-brands fa-google-drive text-amber-400 text-sm"></i>
+                <span>Link Google Drive / Tải Trực Tiếp</span>
+              </label>
+              <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500/40 px-2 py-0.5 rounded-full font-bold">Tắt máy vẫn tải được 24/7</span>
+            </div>
+
+            <input type="url" id="upDirectUrl" placeholder="Dán link Google Drive: https://drive.google.com/file/d/.../view"
+              class="w-full bg-black/70 border border-amber-500/50 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-500 outline-none focus:border-amber-400 text-xs font-mono">
+
+            <p class="text-[10px] text-gray-400 leading-relaxed">
+              💡 <strong class="text-white">Mẹo:</strong> Nhớ bật quyền <em class="text-emerald-400">"Bất kỳ ai có liên kết đều có thể xem/tải"</em> trên Google Drive. Web sẽ tự chuyển thành link tải tốc độ cao!
+            </p>
+
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <div>
+                <label class="block font-medium text-gray-400 text-[11px] mb-1">Dung lượng file</label>
+                <input type="text" id="upDirectSize" placeholder="Ví dụ: 6.6 GB"
+                  class="w-full bg-black/60 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-emerald-500">
               </div>
+              <div>
+                <label class="block font-medium text-gray-400 text-[11px] mb-1">Định dạng file</label>
+                <input type="text" id="upDirectFormat" placeholder="Ví dụ: .rar / .zip / .rpf / .exe"
+                  class="w-full bg-black/60 border border-gray-700 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-emerald-500">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section Thêm Video / Âm thanh nghe thử -->
+          <div class="p-3 bg-gray-900/90 rounded-xl border border-gray-700/80 space-y-2.5">
+            <label class="block font-semibold text-emerald-400 text-xs flex items-center gap-1.5">
+              <i class="fa-solid fa-photo-film"></i>
+              Thêm Video / Âm thanh nghe thử (Preview trước khi tải)
+            </label>
+            <p class="text-[11px] text-gray-400">Tải video clip bắn súng hoặc dán link YouTube để bạn xem/nghe thử tiếng súng trước khi bấm tải.</p>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- Upload Video / Audio file -->
+              <div class="border border-dashed border-gray-700 hover:border-emerald-500 rounded-lg p-2.5 text-center cursor-pointer bg-black/40 transition-all">
+                <input type="file" id="upPreviewFile" accept="video/*,audio/*,image/*" class="hidden">
+                <label for="upPreviewFile" class="cursor-pointer block text-left">
+                  <span class="text-[11px] font-semibold text-white block flex items-center gap-1.5">
+                    <i class="fa-solid fa-file-video text-amber-400"></i>
+                    <span id="selectedPreviewFileName" class="truncate">Tải file Video / Audio / Ảnh</span>
+                  </span>
+                  <span class="text-[10px] text-gray-500 block truncate">.mp4, .mp3, .wav, .jpg, .png</span>
+                </label>
+              </div>
+
+              <!-- YouTube Video URL -->
+              <div>
+                <div class="relative">
+                  <input type="url" id="upYoutubeUrl" placeholder="Hoặc dán link YouTube..." 
+                    class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 pl-8 text-white text-[11px] outline-none focus:border-red-500">
+                  <i class="fa-brands fa-youtube absolute left-2.5 top-2.5 text-red-500 text-xs"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-gray-300 mb-1">Tên hiển thị / Tiêu đề gợi nhớ</label>
+            <input type="text" id="upTitle" placeholder="Để trống sẽ tự lấy tên file gốc..." 
+              class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold text-gray-300 mb-1">Phiên bản</label>
+              <input type="text" id="upVersion" placeholder="v1.0" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-300 mb-1">Ghi chú khi vô net</label>
+              <input type="text" id="upNote" placeholder="Ví dụ: Copy vào thư mục game..." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-gray-300 mb-1">Hướng dẫn cài đặt nhanh</label>
+            <textarea id="upGuide" rows="2" placeholder="Ví dụ: 1. Giải nén vào thư mục GTA 5 / FiveM..." class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-emerald-500"></textarea>
+          </div>
+
+          <!-- Upload Status Bar -->
+          <div id="uploadProgressContainer" class="hidden space-y-1">
+            <div class="flex justify-between text-[11px] text-gray-400">
+              <span>Đang tải lên máy chủ...</span>
+              <span id="uploadPercent">0%</span>
+            </div>
+            <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div id="uploadProgressBar" class="bg-emerald-500 h-1.5 transition-all duration-200" style="width: 0%"></div>
             </div>
           </div>
         </div>
 
-        <div>
-          <label class="block font-semibold text-gray-300 mb-1">Tên hiển thị / Tiêu đề gợi nhớ</label>
-          <input type="text" id="upTitle" placeholder="Để trống sẽ tự lấy tên file gốc..." 
-            class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block font-semibold text-gray-300 mb-1">Phiên bản</label>
-            <input type="text" id="upVersion" placeholder="v1.0" class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
-          </div>
-          <div>
-            <label class="block font-semibold text-gray-300 mb-1">Ghi chú khi vô net</label>
-            <input type="text" id="upNote" placeholder="Ví dụ: Copy vào thư mục game..." class="w-full bg-gray-900 border border-gray-700 rounded-xl px-3.5 py-2 text-white outline-none focus:border-emerald-500">
-          </div>
-        </div>
-
-        <div>
-          <label class="block font-semibold text-gray-300 mb-1">Hướng dẫn cài đặt nhanh</label>
-          <textarea id="upGuide" rows="2" placeholder="Ví dụ: 1. Giải nén vào thư mục GTA 5 / FiveM..." class="w-full bg-gray-900 border border-gray-700 rounded-xl p-3 text-white outline-none focus:border-emerald-500"></textarea>
-        </div>
-
-        <!-- Upload Status Bar -->
-        <div id="uploadProgressContainer" class="hidden space-y-1">
-          <div class="flex justify-between text-[11px] text-gray-400">
-            <span>Đang tải lên máy chủ...</span>
-            <span id="uploadPercent">0%</span>
-          </div>
-          <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
-            <div id="uploadProgressBar" class="bg-emerald-500 h-1.5 transition-all duration-200" style="width: 0%"></div>
-          </div>
-        </div>
-
-        <div class="pt-2 flex justify-end gap-2.5">
-          <button type="button" id="cancelUploadBtn" class="px-4 py-2 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700">Hủy</button>
-          <button type="submit" id="submitUploadBtn" class="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl shadow-lg shadow-emerald-500/20 font-heading flex items-center gap-1.5">
+        <!-- Modal Footer Cố Định Ở Đáy (Luôn hiển thị trên điện thoại, không bao giờ bị thanh trình duyệt che) -->
+        <div class="p-3.5 sm:p-4 bg-[#0d101a] border-t border-gray-800/90 flex items-center justify-end gap-2.5 shrink-0 z-20">
+          <button type="button" id="cancelUploadBtn" class="px-4 py-2.5 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-700 font-semibold text-xs transition-colors">Hủy</button>
+          <button type="submit" id="submitUploadBtn" class="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-black font-bold rounded-xl shadow-lg shadow-emerald-500/20 font-heading flex items-center justify-center gap-1.5 text-xs transition-all">
             <i class="fa-solid fa-cloud-arrow-up"></i>
-            <span>TẢI LÊN LƯU TRỮ</span>
+            <span>TẢI LÊN THƯ VIỆN NGAY</span>
           </button>
         </div>
       </form>
