@@ -40,6 +40,14 @@ function normalizeResource(r) {
   }
   const authorAvatar = r.author_avatar || (r.preview && r.preview.author_avatar) || "";
   const uploaderEmail = r.uploader_email || (r.preview && r.preview.uploader_email) || "";
+
+  // Trích xuất banner / ảnh minh họa chính (ưu tiên ảnh đã tải lên)
+  let bannerImg = r.banner || "";
+  if (!bannerImg && r.preview) {
+    if (r.preview.banner) bannerImg = r.preview.banner;
+    else if (r.preview.type === 'image' && r.preview.url) bannerImg = r.preview.url;
+  }
+
   return {
     ...r,
     id: String(r.id),
@@ -48,6 +56,7 @@ function normalizeResource(r) {
     authorAvatar: authorAvatar,
     uploaderEmail: uploaderEmail,
     category: r.category || "gunsound",
+    banner: bannerImg,
     originalName: r.original_name || r.originalName || r.title,
     filename: r.filename || null,
     files: Array.isArray(r.files) ? r.files : [],
@@ -450,9 +459,10 @@ function renderGrid() {
   items.forEach(item => {
     const cat = CATEGORY_MAP[item.category] || { name: "Tài nguyên", icon: "fa-solid fa-file", color: "gray", badgeClass: "bg-gray-800 text-gray-300", banner: "" };
     const isFav = state.favorites.includes(item.id);
-    const bannerUrl = item.banner || cat.banner || "https://images.unsplash.com/photo-1595590424283-b8f17842773f?auto=format&fit=crop&w=800&q=80";
+    const bannerUrl = item.banner || (item.preview && item.preview.type === 'image' ? item.preview.url : null) || (item.preview && item.preview.banner ? item.preview.banner : null) || cat.banner || "https://images.unsplash.com/photo-1595590424283-b8f17842773f?auto=format&fit=crop&w=800&q=80";
 
     const hasTwoFiles = (item.files && item.files.length > 1) || item.isMultiFile;
+    const hasPlayableMedia = item.preview && (item.preview.type === 'video' || item.preview.type === 'youtube' || item.preview.type === 'audio');
 
     const card = document.createElement("div");
     card.className = "bg-[#121522] border border-gray-800/90 hover:border-gray-700 rounded-2xl overflow-hidden shadow-xl card-hover flex flex-col justify-between group";
@@ -475,9 +485,9 @@ function renderGrid() {
             <i class="${isFav ? 'fa-solid' : 'fa-regular'} fa-heart text-xs"></i>
           </button>
 
-          ${item.preview ? `
-            <div class="absolute inset-0 flex items-center justify-center z-10">
-              <button onclick="openMediaModal(event, '${item.id}')" class="px-3.5 py-1.5 rounded-full bg-black/80 hover:bg-emerald-500 hover:text-black border border-emerald-500/50 text-emerald-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xl backdrop-blur-md group/btn">
+          ${hasPlayableMedia ? `
+            <div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+              <button onclick="openMediaModal(event, '${item.id}')" class="pointer-events-auto px-3.5 py-1.5 rounded-full bg-black/80 hover:bg-emerald-500 hover:text-black border border-emerald-500/50 text-emerald-300 text-xs font-bold transition-all flex items-center gap-2 shadow-2xl backdrop-blur-md group/btn">
                 <i class="fa-solid ${item.preview.type === 'audio' ? 'fa-volume-high text-amber-400' : 'fa-play text-emerald-400'} group-hover/btn:text-black text-xs"></i>
                 <span>${item.preview.type === 'audio' ? 'Nghe Thử Âm Thanh' : 'Xem Video Test'}</span>
               </button>
@@ -584,38 +594,86 @@ function renderGrid() {
   });
 }
 
-// Download real file(s)
-window.downloadFile = function(event, id, mode = 'zip') {
+// Helper tải file bảo toàn 100% đúng tên gốc (kể cả file .ini, .rpf, .exe, .zip...)
+async function downloadFileWithOriginalName(url, filename) {
+  if (!url) return;
+  const safeFilename = filename || "download_mod";
+
+  // Nếu là Google Drive
+  if (url.includes("drive.google.com") || url.includes("drive.usercontent.google.com")) {
+    window.open(url, "_blank");
+    showToast(`Đang chuyển hướng tới Google Drive để tải "${safeFilename}"! 🚀`);
+    return;
+  }
+
+  showToast(`Đang tải file: ${safeFilename}... ⏳`);
+
+  // Cách 1: Tải trực tiếp bằng fetch -> Blob để giữ 100% đúng tên gốc trên máy tính
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = safeFilename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 2000);
+      showToast(`Đã tải thành công: ${safeFilename}! 🚀`);
+      return;
+    } else if (res.status === 404) {
+      showToast(`Lỗi 404: File "${safeFilename}" không tồn tại trên kho lưu trữ Cloud (file cũ đã bị xóa). Vui lòng tải lên lại hoặc liên hệ admin!`, "error");
+      return;
+    }
+  } catch (err) {
+    console.warn("Fetch blob download fallback:", err);
+  }
+
+  // Cách 2: Tải qua tham số ?download= của Supabase Storage (máy chủ sẽ trả về header Content-Disposition)
+  try {
+    const separator = url.includes("?") ? "&" : "?";
+    const downloadUrl = `${url}${separator}download=${encodeURIComponent(safeFilename)}`;
+    const a = document.createElement("a");
+    a.href = downloadUrl;
+    a.download = safeFilename;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (e) {
+    window.open(url, "_blank");
+  }
+}
+
+// Download handler
+window.downloadFile = function(event, id, mode = 'separate') {
   if (event) event.stopPropagation();
   const item = state.resources.find(r => r.id === id);
   if (!item) return;
 
-  const hasMultiple = item.files && item.files.length > 1;
+  const hasMultiple = (item.files && item.files.length > 1) || item.isMultiFile;
 
-  // 1. Nếu là bộ 2 file
+  // 1. Nếu là bộ nhiều file
   if (hasMultiple) {
     if (API_BASE && mode === 'zip') {
       window.location.href = `${API_BASE}/api/download-zip/${item.id}`;
       item.downloads = (item.downloads || 0) + 1;
       updateDownloadCount(item.id, item.downloads);
-      showToast(`Đang tải trọn gói ZIP (gộp cả 2 file: ${item.files[0].originalName} & ${item.files[1].originalName})! 📦`);
+      showToast(`Đang tải trọn gói ZIP (gộp cả 2 file: ${item.files[0]?.originalName} & ${item.files[1]?.originalName})! 📦`);
       renderGrid();
       return;
     }
 
-    // Tải rời 2 file (Cloud hoặc local)
-    showToast(`Đang tải trọn bộ 2 file: ${item.files[0].originalName} & ${item.files[1].originalName}!`);
+    // Tải rời các file (giữ nguyên tên gốc)
+    showToast(`Đang tải trọn bộ ${item.files.length} file...`);
     item.files.forEach((f, idx) => {
       setTimeout(() => {
-        const fileUrl = f.url || (API_BASE ? `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(f.originalName)}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`);
-        const a = document.createElement("a");
-        a.href = fileUrl;
-        a.download = f.originalName;
-        a.target = "_blank";
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }, idx * 800);
+        const subName = f.originalName || `${item.title}_part${idx + 1}${f.format || ''}`;
+        const fileUrl = f.url || (API_BASE ? `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(subName)}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`);
+        downloadFileWithOriginalName(fileUrl, subName);
+      }, idx * 1000);
     });
     item.downloads = (item.downloads || 0) + 1;
     updateDownloadCount(item.id, item.downloads);
@@ -624,19 +682,13 @@ window.downloadFile = function(event, id, mode = 'zip') {
   }
 
   // 2. Nếu là file đơn (Google Drive, Cloud Supabase hoặc Local)
+  const targetName = item.originalName || item.fileName || (item.title + (item.format ? (item.format.startsWith('.') ? item.format : '.' + item.format) : ''));
   const targetUrl = item.directUrl || item.rawDriveUrl || (item.filename ? (API_BASE ? `${API_BASE}/api/download/${item.id}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${item.filename}`) : null);
 
   if (targetUrl) {
-    const a = document.createElement("a");
-    a.href = targetUrl;
-    a.download = item.originalName || item.title;
-    a.target = "_blank";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    downloadFileWithOriginalName(targetUrl, targetName);
     item.downloads = (item.downloads || 0) + 1;
     updateDownloadCount(item.id, item.downloads);
-    showToast(`Đang tải file: ${item.originalName || item.title}! 🚀`);
     renderGrid();
     return;
   }
@@ -651,14 +703,7 @@ window.downloadSingleSubFile = function(event, filename, originalName) {
   if (API_BASE) {
     fileUrl = `${API_BASE}/api/download-file/${filename}/${encodeURIComponent(originalName)}`;
   }
-  const a = document.createElement("a");
-  a.href = fileUrl;
-  a.download = originalName;
-  a.target = "_blank";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  showToast(`Đang tải riêng file: ${originalName}!`);
+  downloadFileWithOriginalName(fileUrl, originalName || filename);
 };
 
 // Delete real file
@@ -717,7 +762,9 @@ window.openDetail = function(id) {
   modalInstallGuide.textContent = item.guide || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.";
 
   // Media preview inside Detail Modal
-  if (item.preview) {
+  const displayBanner = item.banner || (item.preview && item.preview.type === 'image' ? item.preview.url : null) || (item.preview && item.preview.banner ? item.preview.banner : null) || cat.banner || "";
+
+  if (item.preview && (item.preview.type === "video" || item.preview.type === "audio" || item.preview.type === "youtube")) {
     modalBannerImg.classList.add("hidden");
     modalMediaContainer.classList.remove("hidden");
     modalMediaContainer.innerHTML = "";
@@ -742,14 +789,12 @@ window.openDetail = function(id) {
       modalMediaContainer.innerHTML = `
         <iframe class="w-full h-[280px] rounded-xl border-0" src="${getMediaUrl(item.preview.url)}?autoplay=1" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
       `;
-    } else {
-      modalMediaContainer.innerHTML = `<img src="${getMediaUrl(item.preview.url)}" class="w-full h-full object-cover">`;
     }
   } else {
     modalMediaContainer.classList.add("hidden");
     modalMediaContainer.innerHTML = "";
     modalBannerImg.classList.remove("hidden");
-    modalBannerImg.src = item.banner || cat.banner;
+    modalBannerImg.src = displayBanner;
   }
 
   detailModal.classList.remove("hidden");
@@ -880,10 +925,29 @@ function updateCategoryFormUI(cat) {
   }
 }
 
-// Helper lưu thông tin tài nguyên lên Supabase an toàn (hỗ trợ tác giả & avatar)
+// Helper lưu thông tin tài nguyên lên Supabase an toàn (hỗ trợ tác giả, avatar & banner)
 async function saveResourceToSupabase(item) {
-  let payload = { ...item };
-  let res = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
+  const payload = {
+    id: String(item.id),
+    category: item.category,
+    title: item.title,
+    original_name: item.original_name || item.originalName || item.title,
+    filename: item.filename || null,
+    files: Array.isArray(item.files) ? item.files : [],
+    is_multi_file: Boolean(item.is_multi_file),
+    file_count: item.file_count || 1,
+    size: item.size || "--",
+    version: item.version || "v1.0",
+    format: item.format || ".rar",
+    description: item.description || item.desc || "",
+    guide: item.guide || "",
+    preview: item.preview || {},
+    downloads: item.downloads || 0,
+    is_cloud_link: Boolean(item.is_cloud_link),
+    direct_url: item.direct_url || item.directUrl || null
+  };
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
     method: 'POST',
     headers: {
       'apikey': SUPABASE_KEY,
@@ -894,31 +958,6 @@ async function saveResourceToSupabase(item) {
     body: JSON.stringify(payload)
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
-    let retry = false;
-    // Nếu Supabase chưa có cột author_avatar hoặc author thì tự động lược bỏ (dữ liệu tác giả đã được lưu an toàn trong preview jsonb)
-    if (errText.includes('author_avatar')) {
-      delete payload.author_avatar;
-      retry = true;
-    }
-    if (errText.includes('author')) {
-      delete payload.author;
-      retry = true;
-    }
-    if (retry) {
-      res = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(payload)
-      });
-    }
-  }
   return res;
 }
 
@@ -1086,19 +1125,25 @@ uploadForm.addEventListener("submit", async (e) => {
       uploadPercent.textContent = "75%";
     }
 
-    // 3. Xử lý Preview (Video / Audio file hoặc YouTube link)
+    // 3. Xử lý Preview (Video / Audio file, YouTube link hoặc Ảnh minh họa / Banner)
     let previewObj = null;
+    let bannerUrl = "";
     if (upPreviewFile.files && upPreviewFile.files[0]) {
       const pFile = upPreviewFile.files[0];
       const pUp = await uploadFileToSupabase(pFile);
       const ext = pFile.name.split('.').pop().toLowerCase();
       const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
       const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
+      const mediaType = isVideo ? 'video' : (isAudio ? 'audio' : 'image');
+      if (mediaType === 'image') {
+        bannerUrl = pUp.url;
+      }
       previewObj = {
-        type: isVideo ? 'video' : (isAudio ? 'audio' : 'image'),
+        type: mediaType,
         filename: pUp.filename,
         originalName: pFile.name,
         url: pUp.url,
+        banner: bannerUrl,
         author: finalAuthor,
         author_avatar: currentAuthorAvatar,
         uploader_email: currentUploaderEmail
@@ -1139,6 +1184,7 @@ uploadForm.addEventListener("submit", async (e) => {
       description: upNote.value.trim() || "File mod GTA 5 tải trực tiếp từ thiết bị.",
       guide: upGuide.value.trim() || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.",
       preview: previewObj,
+      banner: bannerUrl,
       downloads: 0,
       is_cloud_link: true,
       direct_url: uploaded1.url
@@ -1820,6 +1866,26 @@ window.renderAdminTable = function() {
   }).join('');
 };
 
+window.handleEditBannerFileSelected = async function(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  const label = document.getElementById('editBannerFileName');
+  if (label) label.textContent = `Đang tải: ${file.name}...`;
+
+  try {
+    const uploaded = await uploadFileToSupabase(file);
+    const editBannerInput = document.getElementById('editBanner');
+    if (editBannerInput) {
+      editBannerInput.value = uploaded.url;
+    }
+    if (label) label.textContent = `Đã tải: ${file.name} ✅`;
+    showToast(`Đã tải ảnh bìa lên Cloud thành công! Hãy bấm 'LƯU THAY ĐỔI' để cập nhật.`, 'success');
+  } catch (err) {
+    if (label) label.textContent = "Tải ảnh thất bại!";
+    showToast("Lỗi tải ảnh: " + err.message, "error");
+  }
+};
+
 window.openEditModal = function(e, id) {
   if (e && e.stopPropagation) e.stopPropagation();
   const item = state.resources.find(r => r.id === id);
@@ -1837,6 +1903,15 @@ window.openEditModal = function(e, id) {
   document.getElementById('editDirectUrl').value = item.directUrl || '';
   document.getElementById('editNote').value = item.desc || item.description || '';
   document.getElementById('editGuide').value = item.guide || '';
+
+  const editBanner = document.getElementById('editBanner');
+  if (editBanner) {
+    editBanner.value = item.banner || (item.preview && (item.preview.banner || (item.preview.type === 'image' ? item.preview.url : ''))) || '';
+  }
+  const editBannerFileName = document.getElementById('editBannerFileName');
+  if (editBannerFileName) {
+    editBannerFileName.textContent = 'Tải ảnh bìa mới từ máy tính';
+  }
 
   modal.classList.remove('hidden');
 };
@@ -1858,6 +1933,7 @@ window.handleSaveEditResource = async function(e) {
   const version = document.getElementById('editVersion').value.trim() || 'v1.0';
   const size = document.getElementById('editSize').value.trim() || item.size;
   const directUrl = document.getElementById('editDirectUrl').value.trim();
+  const bannerUrl = document.getElementById('editBanner') ? document.getElementById('editBanner').value.trim() : '';
   const note = document.getElementById('editNote').value.trim();
   const guide = document.getElementById('editGuide').value.trim();
 
@@ -1871,11 +1947,17 @@ window.handleSaveEditResource = async function(e) {
   // Update preview object
   const previewObj = item.preview ? { ...item.preview } : {};
   previewObj.author = author;
+  if (bannerUrl) {
+    previewObj.banner = bannerUrl;
+    if (previewObj.type === 'image' || !previewObj.type) {
+      previewObj.url = bannerUrl;
+      previewObj.type = 'image';
+    }
+  }
 
   const patchPayload = {
     title: title,
     category: category,
-    author: author,
     version: version,
     size: size,
     direct_url: directUrl,
@@ -1899,18 +1981,7 @@ window.handleSaveEditResource = async function(e) {
 
     if (!res.ok) {
       const errText = await res.text();
-      if (errText.includes('author')) {
-        delete patchPayload.author;
-        await fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${id}`, {
-          method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(patchPayload)
-        });
-      }
+      console.warn("Patch warning:", errText);
     }
 
     // Cập nhật state cục bộ
@@ -1924,7 +1995,18 @@ window.handleSaveEditResource = async function(e) {
     item.description = note;
     item.desc = note;
     item.guide = guide;
-    if (item.preview) item.preview.author = author;
+    if (bannerUrl) {
+      item.banner = bannerUrl;
+    }
+    if (item.preview) {
+      item.preview.author = author;
+      if (bannerUrl) {
+        item.preview.banner = bannerUrl;
+        if (item.preview.type === 'image' || !item.preview.type) {
+          item.preview.url = bannerUrl;
+        }
+      }
+    }
 
     closeEditModal();
     renderGrid();

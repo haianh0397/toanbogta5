@@ -930,6 +930,23 @@
               class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs font-mono outline-none">
           </div>
 
+          <!-- Ảnh bìa hiển thị ngoài thẻ (Banner Thumbnail) -->
+          <div>
+            <label class="block text-xs font-semibold text-gray-300 mb-1 flex items-center justify-between">
+              <span>Ảnh bìa hiển thị ngoài thẻ (Thumbnail)</span>
+              <span class="text-[10px] text-emerald-400">Hiện thẳng ra ngoài trang chủ</span>
+            </label>
+            <input type="text" id="editBanner" placeholder="Dán link ảnh trực tiếp (https://... .jpg/.png) hoặc chọn file ảnh từ máy..."
+              class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs font-mono outline-none">
+            <div class="mt-1.5 flex items-center gap-2">
+              <label for="editBannerFile" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-semibold cursor-pointer border border-gray-700 flex items-center gap-1.5 transition-all">
+                <i class="fa-solid fa-cloud-arrow-up text-emerald-400"></i>
+                <span id="editBannerFileName">Tải ảnh bìa mới từ máy tính</span>
+              </label>
+              <input type="file" id="editBannerFile" accept="image/*" class="hidden" onchange="handleEditBannerFileSelected(this)">
+            </div>
+          </div>
+
           <!-- Ghi chú & Hướng dẫn -->
           <div>
             <label class="block text-xs font-semibold text-gray-300 mb-1">Ghi chú ngắn</label>
