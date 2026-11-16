@@ -39,12 +39,14 @@ function normalizeResource(r) {
     authorName = "Hải Anh";
   }
   const authorAvatar = r.author_avatar || (r.preview && r.preview.author_avatar) || "";
+  const uploaderEmail = r.uploader_email || (r.preview && r.preview.uploader_email) || "";
   return {
     ...r,
     id: String(r.id),
     title: r.title || "Tài nguyên GTA 5",
     author: authorName,
     authorAvatar: authorAvatar,
+    uploaderEmail: uploaderEmail,
     category: r.category || "gunsound",
     originalName: r.original_name || r.originalName || r.title,
     filename: r.filename || null,
@@ -548,11 +550,13 @@ function renderGrid() {
             </button>
           `}
 
-          <button onclick="openEditModal(event, '${item.id}')" class="p-2 text-gray-400 hover:text-amber-400 rounded-xl hover:bg-gray-800 transition-colors" title="Chỉnh sửa sản phẩm (Chủ Web)">
-            <i class="fa-solid fa-pen-to-square text-xs"></i>
-          </button>
+          ${canEditResource(item) ? `
+            <button onclick="openEditModal(event, '${item.id}')" class="p-2 text-gray-400 hover:text-amber-400 rounded-xl hover:bg-gray-800 transition-colors" title="Chỉnh sửa sản phẩm">
+              <i class="fa-solid fa-pen-to-square text-xs"></i>
+            </button>
+          ` : ''}
 
-          ${!item.isSample ? `
+          ${canDeleteResource(item) ? `
             <button onclick="deleteFile(event, '${item.id}')" class="p-2 text-gray-500 hover:text-rose-400 rounded-xl hover:bg-gray-800 transition-colors" title="Xóa file này">
               <i class="fa-solid fa-trash-can text-xs"></i>
             </button>
@@ -955,6 +959,7 @@ uploadForm.addEventListener("submit", async (e) => {
   const upAuthorInput = document.getElementById("upAuthor");
   const finalAuthor = (upAuthorInput && upAuthorInput.value.trim()) ? upAuthorInput.value.trim() : (currentUser ? currentUser.name : "Hải Anh");
   const currentAuthorAvatar = (currentUser && currentUser.avatar) ? currentUser.avatar : '';
+  const currentUploaderEmail = (currentUser && currentUser.email) ? currentUser.email : '';
 
   // TRƯỜNG HỢP 1: Dán link Google Drive (Đăng trực tiếp lên Cloud Supabase - Không cần Node.js)
   if (isDriveMode) {
@@ -976,12 +981,12 @@ uploadForm.addEventListener("submit", async (e) => {
       const match = ytVal.match(regExp);
       const ytId = (match && match[2].length === 11) ? match[2] : null;
       if (ytId) {
-        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar };
+        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
       } else {
-        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar };
+        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
       }
     } else {
-      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar };
+      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
     }
 
     const newItem = {
@@ -1095,7 +1100,8 @@ uploadForm.addEventListener("submit", async (e) => {
         originalName: pFile.name,
         url: pUp.url,
         author: finalAuthor,
-        author_avatar: currentAuthorAvatar
+        author_avatar: currentAuthorAvatar,
+        uploader_email: currentUploaderEmail
       };
     } else if (upYoutubeUrl.value.trim()) {
       const ytVal = upYoutubeUrl.value.trim();
@@ -1103,12 +1109,12 @@ uploadForm.addEventListener("submit", async (e) => {
       const match = ytVal.match(regExp);
       const ytId = (match && match[2].length === 11) ? match[2] : null;
       if (ytId) {
-        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar };
+        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
       } else {
-        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar };
+        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
       }
     } else {
-      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar };
+      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar, uploader_email: currentUploaderEmail };
     }
 
     const modFiles = [uploaded1];
@@ -1503,7 +1509,9 @@ window.handleLogout = async function() {
   }
   currentUser = null;
   localStorage.removeItem('gta_cached_user');
+  localStorage.removeItem('gta_admin_unlocked');
   updateAuthUI();
+  renderGrid();
   showToast("Đã đăng xuất tài khoản!", "info");
 };
 
@@ -1513,6 +1521,16 @@ function updateAuthUI() {
   const userAvatar = document.getElementById('userAvatar');
   const userName = document.getElementById('userName');
   const upAuthorInput = document.getElementById("upAuthor");
+  const adminBtn = document.getElementById('adminBtn');
+
+  // Nút Quản Trị Vàng: CHỈ HIỆN khi đăng nhập 1 trong 3 email Chủ Web
+  if (adminBtn) {
+    if (isUserAdmin()) {
+      adminBtn.classList.remove('hidden');
+    } else {
+      adminBtn.classList.add('hidden');
+    }
+  }
 
   if (currentUser) {
     if (loginBtn) loginBtn.classList.add('hidden');
@@ -1556,6 +1574,7 @@ function extractUserData(user) {
 
   localStorage.setItem('gta_cached_user', JSON.stringify(currentUser));
   updateAuthUI();
+  renderGrid();
   closeAuthModal();
   showToast(`Xin chào, ${currentUser.name}! 👋`, "success");
 }
@@ -1631,21 +1650,57 @@ if (originalOpenUploadBtn) {
 }
 
 // ==========================================
-// TRUNG TÂM QUẢN TRỊ & CHECK LOG WEB (CHỦ WEB)
+// TRUNG TÂM QUẢN TRỊ & PHÂN QUYỀN (CHỦ WEB & NGƯỜI ĐĂNG)
 // ==========================================
 
+// 3 Email DUY NHẤT được quyền làm Chủ Web
 const ADMIN_EMAILS = [
-  'haianh01831@gmail.com',
   'nguyenhaianh6a9tg@gmail.com',
-  'haianh0031@gmail.com',
-  'haianh0397@gmail.com'
+  'haianh01831@gmail.com',
+  'haianh0031@gmail.com'
 ];
-const ADMIN_MASTER_PIN = 'haianh2026';
 
+// Chỉ duy nhất 3 email trên mới có quyền Chủ Web
 function isUserAdmin() {
-  if (localStorage.getItem('gta_admin_unlocked') === 'true') return true;
   if (currentUser && currentUser.email) {
     return ADMIN_EMAILS.includes(currentUser.email.toLowerCase().trim());
+  }
+  return false;
+}
+
+// Kiểm tra quyền SỬA bài:
+// 1. Chủ web (3 email trên): Được quyền sửa TẤT CẢ các bài.
+// 2. Người đăng bài: CHỈ ĐƯỢC PHÉP SỬA BÀI CỦA CHÍNH MÌNH.
+function canEditResource(item) {
+  if (!item) return false;
+  if (isUserAdmin()) return true; // Chủ web toàn quyền
+  if (!currentUser || !currentUser.email) return false;
+
+  const currentEmail = currentUser.email.toLowerCase().trim();
+  const uploaderEmail = (item.uploaderEmail || (item.preview && item.preview.uploader_email) || '').toLowerCase().trim();
+  if (uploaderEmail && uploaderEmail === currentEmail) return true;
+
+  // So khớp tên tác giả nếu bài đăng chưa lưu email
+  if (item.author && currentUser.name && item.author.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) {
+    return true;
+  }
+  return false;
+}
+
+// Kiểm tra quyền XÓA bài:
+// 1. Chủ web (3 email trên): Được quyền xóa TẤT CẢ các bài của bất kỳ ai.
+// 2. Người đăng bài: Được quyền xóa bài của chính mình.
+function canDeleteResource(item) {
+  if (!item) return false;
+  if (isUserAdmin()) return true; // Chủ web toàn quyền
+  if (!currentUser || !currentUser.email) return false;
+
+  const currentEmail = currentUser.email.toLowerCase().trim();
+  const uploaderEmail = (item.uploaderEmail || (item.preview && item.preview.uploader_email) || '').toLowerCase().trim();
+  if (uploaderEmail && uploaderEmail === currentEmail) return true;
+
+  if (item.author && currentUser.name && item.author.toLowerCase().trim() === currentUser.name.toLowerCase().trim()) {
+    return true;
   }
   return false;
 }
@@ -1654,13 +1709,7 @@ window.checkAndOpenAdmin = function() {
   if (isUserAdmin()) {
     openAdminModal();
   } else {
-    const pinModal = document.getElementById('adminPinModal');
-    if (pinModal) pinModal.classList.remove('hidden');
-    const pinInput = document.getElementById('adminPinInput');
-    if (pinInput) {
-      pinInput.value = '';
-      setTimeout(() => pinInput.focus(), 150);
-    }
+    showToast("Mục Quản Trị & Check Log chỉ dành riêng cho Chủ Web!", "error");
   }
 };
 
@@ -1670,16 +1719,11 @@ window.closeAdminPinModal = function() {
 };
 
 window.verifyAdminPin = function() {
-  const pinInput = document.getElementById('adminPinInput');
-  const val = pinInput ? pinInput.value.trim() : '';
-  if (val === ADMIN_MASTER_PIN || val === 'haianh' || val === '123456') {
-    localStorage.setItem('gta_admin_unlocked', 'true');
+  if (isUserAdmin()) {
     closeAdminPinModal();
-    showToast("Xác thực Chủ Web thành công! Đã mở quyền Quản Trị viên 👑", "success");
     openAdminModal();
   } else {
-    showToast("Mã PIN không đúng, vui lòng thử lại!", "error");
-    if (pinInput) pinInput.focus();
+    showToast("Vui lòng đăng nhập bằng đúng Gmail Chủ Web!", "error");
   }
 };
 
