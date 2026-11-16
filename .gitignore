@@ -1,0 +1,11 @@
+node_modules/
+uploads/*.rpf
+uploads/*.exe
+uploads/*.zip
+uploads/*.rar
+uploads/*.7z
+uploads/*.mp4
+uploads/*.mkv
+uploads/*.mp3
+uploads/*.wav
+*.log
