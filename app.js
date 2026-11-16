@@ -7,6 +7,18 @@ const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' 
 const SUPABASE_URL = "https://xsjrdsiiokptahuzcwgl.supabase.co";
 const SUPABASE_KEY = "sb_publishable_GEgx9R3u38FSvqK1Y5Gu3w_23b2ynuv";
 
+// Khởi tạo Supabase Client toàn cục cho Realtime & Xác thực OAuth (Google / Discord)
+const supabaseClient = (window.supabase && typeof window.supabase.createClient === 'function')
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
+
+// Biến lưu thông tin người dùng đang đăng nhập
+let currentUser = null;
+try {
+  const cachedUser = localStorage.getItem('gta_cached_user');
+  if (cachedUser) currentUser = JSON.parse(cachedUser);
+} catch (e) {}
+
 function getMediaUrl(url) {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
@@ -19,10 +31,20 @@ function normalizeResource(r) {
   const directUrl = r.direct_url || r.directUrl || "";
   const isCloud = r.is_cloud_link !== undefined ? r.is_cloud_link : (r.isCloudLink !== undefined ? r.isCloudLink : Boolean(directUrl));
   const isDrive = Boolean(directUrl.includes("drive.google.com") || isCloud);
+  let authorName = r.author;
+  if (!authorName && r.preview && r.preview.author) {
+    authorName = r.preview.author;
+  }
+  if (!authorName) {
+    authorName = "Hải Anh";
+  }
+  const authorAvatar = r.author_avatar || (r.preview && r.preview.author_avatar) || "";
   return {
     ...r,
     id: String(r.id),
     title: r.title || "Tài nguyên GTA 5",
+    author: authorName,
+    authorAvatar: authorAvatar,
     category: r.category || "gunsound",
     originalName: r.original_name || r.originalName || r.title,
     filename: r.filename || null,
@@ -42,6 +64,59 @@ function normalizeResource(r) {
     isDrive: isDrive,
     createdAt: r.created_at || r.createdAt || new Date().toISOString()
   };
+}
+
+function formatBytes(bytes, decimals = 1) {
+  if (!bytes || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+async function uploadFileToSupabase(file) {
+  const fileExt = file.name.split('.').pop();
+  const safeName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/mods/${safeName}`;
+
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': file.type || 'application/octet-stream'
+    },
+    body: file
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Lỗi tải file lên Cloud: ${res.status} - ${errText}`);
+  }
+
+  return {
+    filename: safeName,
+    originalName: file.name,
+    size: formatBytes(file.size),
+    sizeBytes: file.size,
+    format: '.' + fileExt,
+    url: `${SUPABASE_URL}/storage/v1/object/public/mods/${safeName}`
+  };
+}
+
+function updateDownloadCount(id, count) {
+  try {
+    fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ downloads: count })
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 // No sample files: The hub starts 100% clean so user uploads their own files
@@ -414,6 +489,21 @@ function renderGrid() {
             ${item.title}
           </h3>
 
+          <div class="flex items-center gap-1.5 text-[11px] text-gray-400">
+            ${item.authorAvatar ? `
+              <img src="${item.authorAvatar}" class="w-5 h-5 rounded-full object-cover border border-emerald-400/60 shrink-0" alt="${item.author}">
+            ` : `
+              <span class="w-5 h-5 rounded-md bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-[10px] shrink-0">
+                <i class="fa-solid fa-user-pen"></i>
+              </span>
+            `}
+            <span class="truncate flex items-center gap-1">
+              <span>Đăng bởi:</span>
+              <strong class="text-emerald-400 font-semibold truncate">${item.author || 'Hải Anh'}</strong>
+              ${item.authorAvatar ? `<i class="fa-solid fa-circle-check text-emerald-400 text-[10px]" title="Tài khoản đã xác thực"></i>` : ''}
+            </span>
+          </div>
+
           <p class="text-xs text-gray-400 line-clamp-2 leading-relaxed">
             ${item.desc || item.description || "Nhấp vào để xem chi tiết hướng dẫn và tải về."}
           </p>
@@ -483,65 +573,71 @@ window.downloadFile = function(event, id, mode = 'zip') {
   const item = state.resources.find(r => r.id === id);
   if (!item) return;
 
-  // Nếu là file lưu trên Google Drive hoặc link tải trực tiếp
-  if (item.isCloudLink || item.directUrl) {
-    const targetUrl = item.directUrl || item.rawDriveUrl;
-    window.open(targetUrl, '_blank');
+  const hasMultiple = item.files && item.files.length > 1;
+
+  // 1. Nếu là bộ 2 file
+  if (hasMultiple) {
+    if (API_BASE && mode === 'zip') {
+      window.location.href = `${API_BASE}/api/download-zip/${item.id}`;
+      item.downloads = (item.downloads || 0) + 1;
+      updateDownloadCount(item.id, item.downloads);
+      showToast(`Đang tải trọn gói ZIP (gộp cả 2 file: ${item.files[0].originalName} & ${item.files[1].originalName})! 📦`);
+      renderGrid();
+      return;
+    }
+
+    // Tải rời 2 file (Cloud hoặc local)
+    showToast(`Đang tải trọn bộ 2 file: ${item.files[0].originalName} & ${item.files[1].originalName}!`);
+    item.files.forEach((f, idx) => {
+      setTimeout(() => {
+        const fileUrl = f.url || (API_BASE ? `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(f.originalName)}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${f.filename}`);
+        const a = document.createElement("a");
+        a.href = fileUrl;
+        a.download = f.originalName;
+        a.target = "_blank";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, idx * 800);
+    });
     item.downloads = (item.downloads || 0) + 1;
-    try {
-      fetch(`${SUPABASE_URL}/rest/v1/resources?id=eq.${item.id}`, {
-        method: 'PATCH',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ downloads: item.downloads })
-      }).catch(() => {});
-    } catch (e) {}
-    showToast(`Đang mở link tải Google Drive! ⚡`);
+    updateDownloadCount(item.id, item.downloads);
     renderGrid();
     return;
   }
 
-  const hasMultiple = item.files && item.files.length > 1;
+  // 2. Nếu là file đơn (Google Drive, Cloud Supabase hoặc Local)
+  const targetUrl = item.directUrl || item.rawDriveUrl || (item.filename ? (API_BASE ? `${API_BASE}/api/download/${item.id}` : `${SUPABASE_URL}/storage/v1/object/public/mods/${item.filename}`) : null);
 
-  if (hasMultiple && mode === 'zip') {
-    // Mode 1: Tải trọn gói gộp cả 2 file thành 1 file .ZIP (Không bao giờ bị Chrome chặn, 100% mượt mà)
-    window.location.href = `${API_BASE}/api/download-zip/${item.id}`;
+  if (targetUrl) {
+    const a = document.createElement("a");
+    a.href = targetUrl;
+    a.download = item.originalName || item.title;
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     item.downloads = (item.downloads || 0) + 1;
-    showToast(`Đang tải trọn gói ZIP (gộp cả 2 file: ${item.files[0].originalName} & ${item.files[1].originalName})! 📦`);
-    renderGrid();
-  } else if (hasMultiple) {
-    // Mode 2: Tải rời 2 file
-    showToast(`Đang tải 2 file rời. Lưu ý: Bấm [Allow] trên góc trái Chrome nếu có hỏi nhé!`);
-    item.files.forEach((f, idx) => {
-      setTimeout(() => {
-        const a = document.createElement("a");
-        a.href = `${API_BASE}/api/download-file/${f.filename}/${encodeURIComponent(f.originalName)}`;
-        a.download = f.originalName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }, idx * 1000);
-    });
-    item.downloads = (item.downloads || 0) + 1;
-    renderGrid();
-  } else if (item.filename) {
-    // Single file download
-    window.location.href = `${API_BASE}/api/download/${item.id}`;
-    item.downloads = (item.downloads || 0) + 1;
+    updateDownloadCount(item.id, item.downloads);
     showToast(`Đang tải file: ${item.originalName || item.title}! 🚀`);
     renderGrid();
+    return;
   }
+
+  showToast("Không tìm thấy link tải của file này!", "warning");
 };
 
 // Download single sub-file
 window.downloadSingleSubFile = function(event, filename, originalName) {
   if (event) event.stopPropagation();
+  let fileUrl = `${SUPABASE_URL}/storage/v1/object/public/mods/${filename}`;
+  if (API_BASE) {
+    fileUrl = `${API_BASE}/api/download-file/${filename}/${encodeURIComponent(originalName)}`;
+  }
   const a = document.createElement("a");
-  a.href = `${API_BASE}/api/download-file/${filename}/${encodeURIComponent(originalName)}`;
+  a.href = fileUrl;
   a.download = originalName;
+  a.target = "_blank";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -595,7 +691,11 @@ window.openDetail = function(id) {
   modalSize.textContent = item.size || "--";
   modalDownloads.textContent = (item.downloads || 0).toLocaleString();
   modalFormat.textContent = item.format || ".zip";
-  modalAuthor.textContent = item.author || "Bạn (Tải lên từ máy nhà)";
+  if (item.authorAvatar) {
+    modalAuthor.innerHTML = `<span class="inline-flex items-center gap-1.5"><img src="${item.authorAvatar}" class="w-4 h-4 rounded-full object-cover border border-emerald-400"> ${item.author || "Hải Anh"} <i class="fa-solid fa-circle-check text-emerald-400 text-[10px]"></i></span>`;
+  } else {
+    modalAuthor.textContent = item.author || "Hải Anh";
+  }
   modalDesc.textContent = item.desc || item.description || "Không có mô tả.";
   modalInstallGuide.textContent = item.guide || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.";
 
@@ -760,6 +860,48 @@ function updateCategoryFormUI(cat) {
   }
 }
 
+// Helper lưu thông tin tài nguyên lên Supabase an toàn (hỗ trợ tác giả & avatar)
+async function saveResourceToSupabase(item) {
+  let payload = { ...item };
+  let res = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    let retry = false;
+    // Nếu Supabase chưa có cột author_avatar hoặc author thì tự động lược bỏ (dữ liệu tác giả đã được lưu an toàn trong preview jsonb)
+    if (errText.includes('author_avatar')) {
+      delete payload.author_avatar;
+      retry = true;
+    }
+    if (errText.includes('author')) {
+      delete payload.author;
+      retry = true;
+    }
+    if (retry) {
+      res = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(payload)
+      });
+    }
+  }
+  return res;
+}
+
 // Category change reaction
 upCategory.addEventListener("change", () => {
   updateCategoryFormUI(upCategory.value);
@@ -794,6 +936,10 @@ uploadForm.addEventListener("submit", async (e) => {
     }
   }
 
+  const upAuthorInput = document.getElementById("upAuthor");
+  const finalAuthor = (upAuthorInput && upAuthorInput.value.trim()) ? upAuthorInput.value.trim() : (currentUser ? currentUser.name : "Hải Anh");
+  const currentAuthorAvatar = (currentUser && currentUser.avatar) ? currentUser.avatar : '';
+
   // TRƯỜNG HỢP 1: Dán link Google Drive (Đăng trực tiếp lên Cloud Supabase - Không cần Node.js)
   if (isDriveMode) {
     uploadProgressContainer.classList.remove("hidden");
@@ -814,16 +960,20 @@ uploadForm.addEventListener("submit", async (e) => {
       const match = ytVal.match(regExp);
       const ytId = (match && match[2].length === 11) ? match[2] : null;
       if (ytId) {
-        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}` };
+        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar };
       } else {
-        previewObj = { type: 'video', url: ytVal };
+        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar };
       }
+    } else {
+      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar };
     }
 
     const newItem = {
       id: Date.now().toString(),
       category: upCategory.value,
       title: finalTitle,
+      author: finalAuthor,
+      author_avatar: currentAuthorAvatar,
       original_name: finalTitle,
       filename: null,
       files: [],
@@ -844,16 +994,7 @@ uploadForm.addEventListener("submit", async (e) => {
       uploadProgressBar.style.width = "80%";
       uploadPercent.textContent = "80%";
 
-      const supRes = await fetch(`${SUPABASE_URL}/rest/v1/resources`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify(newItem)
-      });
+      const supRes = await saveResourceToSupabase(newItem);
 
       uploadProgressContainer.classList.add("hidden");
       submitUploadBtn.disabled = false;
@@ -890,7 +1031,7 @@ uploadForm.addEventListener("submit", async (e) => {
 
       renderGrid();
       updateCounters();
-      showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${savedItem.title}" đã được lưu lên Cloud Supabase! Mọi người đều thấy ngay.`);
+      showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${savedItem.title}" (Cre: ${savedItem.author}) đã xuất hiện trên web!`);
       return;
     } catch (err) {
       console.error("Upload drive mode error:", err);
@@ -901,101 +1042,135 @@ uploadForm.addEventListener("submit", async (e) => {
     }
   }
 
-  // TRƯỜNG HỢP 2: Tải file từ máy tính
-  const formData = new FormData();
+  // TRƯỜNG HỢP 2: Tải file trực tiếp từ máy tính / điện thoại lên Cloud Supabase Storage
   const file1 = upFile.files[0];
   const file2 = upFile2.files && upFile2.files[0] ? upFile2.files[0] : null;
-  formData.append("files", file1);
-  if (file2) {
-    formData.append("files", file2);
-  }
-
-  formData.append("category", upCategory.value);
-  formData.append("title", finalTitle);
-  formData.append("version", upVersion.value.trim() || "v1.0");
-  formData.append("description", upNote.value.trim() || "File mod GTA 5 tải lên từ máy nhà.");
-  formData.append("guide", upGuide.value.trim() || "Giải nén file và dán vào thư mục GTA 5 hoặc FiveM.");
-
-  // Append Preview (Video / Audio / Image file or YouTube link)
-  if (upPreviewFile.files && upPreviewFile.files[0]) {
-    formData.append("preview", upPreviewFile.files[0]);
-  }
-  if (upYoutubeUrl.value.trim()) {
-    formData.append("youtubeUrl", upYoutubeUrl.value.trim());
-  }
 
   uploadProgressContainer.classList.remove("hidden");
+  uploadProgressBar.style.width = "20%";
+  uploadPercent.textContent = "20%";
   submitUploadBtn.disabled = true;
 
-  const xhr = new XMLHttpRequest();
-  xhr.open("POST", (API_BASE || "") + "/api/upload", true);
+  try {
+    // 1. Tải File 1 lên Supabase Storage
+    const uploaded1 = await uploadFileToSupabase(file1);
+    uploadProgressBar.style.width = "50%";
+    uploadPercent.textContent = "50%";
 
-  xhr.upload.onprogress = function(e) {
-    if (e.lengthComputable) {
-      const percent = Math.round((e.loaded / e.total) * 100);
-      uploadProgressBar.style.width = percent + "%";
-      uploadPercent.textContent = percent + "%";
+    // 2. Nếu có File 2 đi kèm
+    let uploaded2 = null;
+    if (file2) {
+      uploaded2 = await uploadFileToSupabase(file2);
+      uploadProgressBar.style.width = "75%";
+      uploadPercent.textContent = "75%";
     }
-  };
 
-  xhr.onload = function() {
+    // 3. Xử lý Preview (Video / Audio file hoặc YouTube link)
+    let previewObj = null;
+    if (upPreviewFile.files && upPreviewFile.files[0]) {
+      const pFile = upPreviewFile.files[0];
+      const pUp = await uploadFileToSupabase(pFile);
+      const ext = pFile.name.split('.').pop().toLowerCase();
+      const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
+      const isAudio = ['mp3', 'wav', 'ogg', 'm4a'].includes(ext);
+      previewObj = {
+        type: isVideo ? 'video' : (isAudio ? 'audio' : 'image'),
+        filename: pUp.filename,
+        originalName: pFile.name,
+        url: pUp.url,
+        author: finalAuthor,
+        author_avatar: currentAuthorAvatar
+      };
+    } else if (upYoutubeUrl.value.trim()) {
+      const ytVal = upYoutubeUrl.value.trim();
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+      const match = ytVal.match(regExp);
+      const ytId = (match && match[2].length === 11) ? match[2] : null;
+      if (ytId) {
+        previewObj = { type: 'youtube', youtubeId: ytId, url: `https://www.youtube.com/embed/${ytId}`, author: finalAuthor, author_avatar: currentAuthorAvatar };
+      } else {
+        previewObj = { type: 'video', url: ytVal, author: finalAuthor, author_avatar: currentAuthorAvatar };
+      }
+    } else {
+      previewObj = { author: finalAuthor, author_avatar: currentAuthorAvatar };
+    }
+
+    const modFiles = [uploaded1];
+    if (uploaded2) modFiles.push(uploaded2);
+
+    const totalBytes = (file1.size || 0) + (file2 ? file2.size : 0);
+
+    const newItem = {
+      id: Date.now().toString(),
+      category: upCategory.value,
+      title: finalTitle,
+      author: finalAuthor,
+      author_avatar: currentAuthorAvatar,
+      original_name: file1.name,
+      filename: uploaded1.filename,
+      files: modFiles,
+      is_multi_file: Boolean(uploaded2),
+      file_count: modFiles.length,
+      size: formatBytes(totalBytes),
+      version: upVersion.value.trim() || "v1.0",
+      format: modFiles.map(f => f.format).join(' / '),
+      description: upNote.value.trim() || "File mod GTA 5 tải trực tiếp từ thiết bị.",
+      guide: upGuide.value.trim() || "Giải nén file và copy vào thư mục GTA 5 hoặc FiveM.",
+      preview: previewObj,
+      downloads: 0,
+      is_cloud_link: true,
+      direct_url: uploaded1.url
+    };
+
+    uploadProgressBar.style.width = "90%";
+    uploadPercent.textContent = "90%";
+
+    const supRes = await saveResourceToSupabase(newItem);
+
     uploadProgressContainer.classList.add("hidden");
     submitUploadBtn.disabled = false;
     uploadProgressBar.style.width = "0%";
 
-    if (xhr.status === 200) {
-      let createdItem = null;
-      try {
-        const resp = JSON.parse(xhr.responseText);
-        if (resp && resp.item) {
-          createdItem = normalizeResource(resp.item);
-        }
-      } catch (err) {
-        console.error("Parse response error", err);
+    let savedItem = normalizeResource(newItem);
+    if (supRes.ok) {
+      const respJson = await supRes.json();
+      if (Array.isArray(respJson) && respJson[0]) {
+        savedItem = normalizeResource(respJson[0]);
       }
-
-      closeUpload();
-
-      if (createdItem) {
-        state.resources = state.resources.filter(r => r.id !== createdItem.id);
-        state.resources.unshift(createdItem);
-
-        if (state.activeCategory !== 'all' && state.activeCategory !== createdItem.category) {
-          state.activeCategory = createdItem.category;
-          document.querySelectorAll(".cat-pill").forEach(p => {
-            const isMatch = p.dataset.cat === createdItem.category;
-            p.classList.toggle("active", isMatch);
-            p.classList.toggle("bg-emerald-500", isMatch);
-            p.classList.toggle("border-emerald-400", isMatch);
-            p.classList.toggle("text-black", isMatch);
-            p.classList.toggle("shadow-lg", isMatch);
-            p.classList.toggle("shadow-emerald-500/20", isMatch);
-            p.classList.toggle("bg-gray-900/90", !isMatch);
-            p.classList.toggle("border-gray-800", !isMatch);
-            p.classList.toggle("text-gray-300", !isMatch);
-          });
-        }
-
-        renderGrid();
-        updateCounters();
-      } else {
-        loadResources();
-      }
-
-      const itemTitle = createdItem ? createdItem.title : (finalTitle || "Tài nguyên mới");
-      showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${itemTitle}" đã hiển thị sẵn sàng tải về.`);
-    } else {
-      showToast("Trên bản Web Online 24/7, vui lòng chọn tab 'Dán Link Google Drive' để tải lên!", "warning");
     }
-  };
 
-  xhr.onerror = function() {
+    closeUpload();
+
+    state.resources = state.resources.filter(r => r.id !== savedItem.id);
+    state.resources.unshift(savedItem);
+
+    if (state.activeCategory !== 'all' && state.activeCategory !== savedItem.category) {
+      state.activeCategory = savedItem.category;
+      document.querySelectorAll(".cat-pill").forEach(p => {
+        const isMatch = p.dataset.cat === savedItem.category;
+        p.classList.toggle("active", isMatch);
+        p.classList.toggle("bg-emerald-500", isMatch);
+        p.classList.toggle("border-emerald-400", isMatch);
+        p.classList.toggle("text-black", isMatch);
+        p.classList.toggle("shadow-lg", isMatch);
+        p.classList.toggle("shadow-emerald-500/20", isMatch);
+        p.classList.toggle("bg-gray-900/90", !isMatch);
+        p.classList.toggle("border-gray-800", !isMatch);
+        p.classList.toggle("text-gray-300", !isMatch);
+      });
+    }
+
+    renderGrid();
+    updateCounters();
+    showSuccessHUD("TẢI LÊN THÀNH CÔNG! 🔥", `"${savedItem.title}" (Cre: ${savedItem.author}) đã xuất hiện trên web!`);
+    return;
+  } catch (err) {
+    console.error("Direct upload error:", err);
     uploadProgressContainer.classList.add("hidden");
     submitUploadBtn.disabled = false;
-    showToast("Trên bản Web Online 24/7, vui lòng chọn tab 'Dán Link Google Drive' để chia sẻ file không giới hạn!", "warning");
-  };
-
-  xhr.send(formData);
+    showToast("Lỗi khi tải file: " + err.message, "warning");
+    return;
+  }
 });
 
 // 1. Nút "ĐĂNG TẢI FILE" ở góc trên cùng: Duy nhất nút này cho phép TỰ DO CHỌN CHUYÊN MỤC
@@ -1096,5 +1271,195 @@ sortSelect.addEventListener("change", (e) => {
   renderGrid();
 });
 
+// TỰ ĐỘNG CẬP NHẬT TỨC THÌ (REALTIME) KHÔNG CẦN F5 TRANG WEB
+let lastDataFingerprint = "";
+
+async function syncRealtimeChanges() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=*&order=created_at.desc`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (!res.ok) return;
+    const freshList = (await res.json()).map(normalizeResource);
+    const fingerprint = freshList.map(r => `${r.id}_${r.downloads || 0}`).join('|');
+
+    if (!lastDataFingerprint) {
+      lastDataFingerprint = fingerprint;
+      return;
+    }
+
+    if (lastDataFingerprint !== fingerprint) {
+      console.log("[REALTIME] Có file mới tải lên từ máy khác! Tự động hiển thị lên web ngay...");
+      lastDataFingerprint = fingerprint;
+      state.resources = freshList;
+      updateCounters();
+      renderGrid();
+    }
+  } catch (err) {}
+}
+
+function initSupabaseRealtime() {
+  // 1. Quét nền tự động mỗi 3 giây (đảm bảo 100% không bao giờ cần F5)
+  setInterval(syncRealtimeChanges, 3000);
+
+  // 2. Kênh WebSocket Supabase Realtime (Cập nhật trong 0.1 giây)
+  if (window.supabase && typeof window.supabase.createClient === 'function') {
+    try {
+      const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      client
+        .channel('resources-realtime-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'resources' }, (payload) => {
+          console.log('[REALTIME WS] Có thay đổi dữ liệu trực tiếp:', payload);
+          loadResources();
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn("Supabase Realtime socket warning:", e);
+    }
+  }
+}
+
+// ==========================================
+// HỆ THỐNG XÁC THỰC OAUTH (GOOGLE & DISCORD)
+// Tự động nhận diện Tên Thật & Ảnh đại diện
+// ==========================================
+
+window.openAuthModal = function() {
+  const modal = document.getElementById('authModal');
+  if (modal) modal.classList.remove('hidden');
+};
+
+window.closeAuthModal = function() {
+  const modal = document.getElementById('authModal');
+  if (modal) modal.classList.add('hidden');
+};
+
+window.loginWithProvider = async function(provider) {
+  if (!supabaseClient) {
+    showToast("Đang kết nối dịch vụ xác thực, vui lòng thử lại sau 1 giây...", "warning");
+    return;
+  }
+  try {
+    showToast(`Đang chuyển hướng tới ${provider === 'google' ? 'Google' : 'Discord'}...`, "info");
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: provider,
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) throw error;
+  } catch (err) {
+    console.error("Login error:", err);
+    showToast(`Đăng nhập ${provider} lỗi: ` + (err.message || err), "error");
+  }
+};
+
+window.handleLogout = async function() {
+  if (supabaseClient) {
+    try {
+      await supabaseClient.auth.signOut();
+    } catch (e) {}
+  }
+  currentUser = null;
+  localStorage.removeItem('gta_cached_user');
+  updateAuthUI();
+  showToast("Đã đăng xuất tài khoản!", "info");
+};
+
+function updateAuthUI() {
+  const loginBtn = document.getElementById('loginBtn');
+  const userProfile = document.getElementById('userProfile');
+  const userAvatar = document.getElementById('userAvatar');
+  const userName = document.getElementById('userName');
+  const upAuthorInput = document.getElementById("upAuthor");
+
+  if (currentUser) {
+    if (loginBtn) loginBtn.classList.add('hidden');
+    if (userProfile) userProfile.classList.remove('hidden');
+    if (userAvatar) {
+      userAvatar.src = currentUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=10b981&color=000`;
+    }
+    if (userName) userName.textContent = currentUser.name;
+    if (upAuthorInput && (!upAuthorInput.value || upAuthorInput.value === 'Hải Anh')) {
+      upAuthorInput.value = currentUser.name;
+    }
+  } else {
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (userProfile) userProfile.classList.add('hidden');
+    if (upAuthorInput && upAuthorInput.value === 'Hải Anh') {
+      upAuthorInput.value = '';
+    }
+  }
+}
+
+function extractUserData(user) {
+  if (!user) return;
+  const meta = user.user_metadata || {};
+  // Nhận diện tên thật từ Google / Discord
+  let realName = meta.full_name || meta.name || meta.custom_claims?.global_name || meta.user_name || meta.preferred_username;
+  if (!realName && user.email) {
+    realName = user.email.split('@')[0];
+  }
+  if (!realName) realName = "Hải Anh";
+
+  // Nhận diện avatar thật
+  let realAvatar = meta.avatar_url || meta.picture || "";
+
+  currentUser = {
+    id: user.id,
+    name: realName,
+    avatar: realAvatar,
+    email: user.email || ""
+  };
+
+  localStorage.setItem('gta_cached_user', JSON.stringify(currentUser));
+  updateAuthUI();
+  closeAuthModal();
+  showToast(`Xin chào, ${currentUser.name}! 👋`, "success");
+}
+
+async function initAuth() {
+  updateAuthUI();
+
+  if (!supabaseClient) return;
+
+  try {
+    // 1. Kiểm tra session hiện tại
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      extractUserData(session.user);
+    }
+
+    // 2. Lắng nghe trạng thái đăng nhập thay đổi realtime
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      console.log("[AUTH EVENT]", event, session);
+      if (session && session.user) {
+        extractUserData(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        currentUser = null;
+        updateAuthUI();
+      }
+    });
+  } catch (err) {
+    console.warn("Lỗi khởi tạo Auth:", err);
+  }
+}
+
+// Cập nhật tên tác giả tự động khi mở Modal Upload
+const originalOpenUploadBtn = document.getElementById("openUploadBtn");
+if (originalOpenUploadBtn) {
+  originalOpenUploadBtn.addEventListener("click", () => {
+    const upAuthorInput = document.getElementById("upAuthor");
+    if (currentUser && upAuthorInput) {
+      upAuthorInput.value = currentUser.name;
+    }
+  });
+}
+
 // Run
 loadResources();
+initSupabaseRealtime();
+initAuth();
