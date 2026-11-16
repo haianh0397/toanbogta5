@@ -616,22 +616,21 @@
           <div class="p-3 bg-gray-900/90 rounded-xl border border-gray-700/80 space-y-2.5">
             <label class="block font-semibold text-emerald-400 text-xs flex items-center gap-1.5">
               <i class="fa-solid fa-photo-film"></i>
-              Thêm Video / Âm thanh nghe thử (Preview trước khi tải)
+              Thêm Video / Âm thanh / Ảnh bìa (Xem trước khi tải)
             </label>
-            <p class="text-[11px] text-gray-400">Tải video clip bắn súng hoặc dán link YouTube để bạn xem/nghe thử tiếng
-              súng trước khi bấm tải.</p>
+            <p class="text-[11px] text-gray-400">Tải ảnh chụp mod, video test hoặc dán link YouTube để hiển thị lên thẻ bài viết.</p>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <!-- Upload Video / Audio file -->
+              <!-- Upload Video / Audio / Image file -->
               <div
                 class="border border-dashed border-gray-700 hover:border-emerald-500 rounded-lg p-2.5 text-center cursor-pointer bg-black/40 transition-all">
                 <input type="file" id="upPreviewFile" accept="video/*,audio/*,image/*" class="hidden">
                 <label for="upPreviewFile" class="cursor-pointer block text-left">
                   <span class="text-[11px] font-semibold text-white block flex items-center gap-1.5">
-                    <i class="fa-solid fa-file-video text-amber-400"></i>
-                    <span id="selectedPreviewFileName" class="truncate">Tải file Video / Audio / Ảnh</span>
+                    <i class="fa-solid fa-camera text-emerald-400"></i>
+                    <span id="selectedPreviewFileName" class="truncate">Chọn Ảnh Bìa / Video / Audio</span>
                   </span>
-                  <span class="text-[10px] text-gray-500 block truncate">.mp4, .mp3, .wav, .jpg, .png</span>
+                  <span class="text-[10px] text-gray-500 block truncate">.jpg, .png, .mp4, .mp3, .wav</span>
                 </label>
               </div>
 
@@ -641,6 +640,88 @@
                   <input type="url" id="upYoutubeUrl" placeholder="Hoặc dán link YouTube..."
                     class="w-full bg-black/40 border border-gray-700 rounded-lg px-3 py-2 pl-8 text-white text-[11px] outline-none focus:border-red-500">
                   <i class="fa-brands fa-youtube absolute left-2.5 top-2.5 text-red-500 text-xs"></i>
+                </div>
+              </div>
+            </div>
+
+            <!-- KHUNG XEM TRƯỚC & CHỈNH SỬA ẢNH TRỰC QUAN (UPLOAD MODAL) -->
+            <div id="upImageEditorBox" class="hidden mt-2.5 p-3 bg-black/70 rounded-xl border border-emerald-500/40 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>Xem Trước & Chỉnh Sửa Ảnh Bìa Ngoài Card</span>
+                </div>
+                <button type="button" onclick="removeImageEditor('up')" class="text-[11px] text-gray-400 hover:text-red-400 flex items-center gap-1 transition-colors">
+                  <i class="fa-solid fa-trash-can"></i>
+                  <span>Bỏ ảnh</span>
+                </button>
+              </div>
+
+              <!-- Viewport 16:9 Chuẩn Card GTA 5 -->
+              <div class="relative w-full h-40 rounded-xl overflow-hidden bg-black border border-gray-800 shadow-xl flex items-center justify-center">
+                <img id="upImagePreviewTag" src="" alt="Live Preview" class="w-full h-full object-cover transition-all duration-200">
+                <div class="absolute inset-0 bg-gradient-to-t from-[#121522] via-[#121522]/30 to-transparent pointer-events-none"></div>
+                <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] text-emerald-300 font-semibold border border-emerald-500/40 backdrop-blur-sm pointer-events-none flex items-center gap-1">
+                  <i class="fa-solid fa-eye text-emerald-400"></i> Xem trước chuẩn Card Web
+                </span>
+              </div>
+
+              <!-- Thanh công cụ chỉnh sửa ảnh -->
+              <div class="space-y-2 pt-1">
+                <!-- Xoay & Tỷ lệ -->
+                <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span class="text-[11px] text-gray-400 font-medium">Góc & Tỷ lệ:</span>
+                  <button type="button" onclick="rotateImageEditor('up', 90)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-rotate-right text-emerald-400"></i> Xoay 90°
+                  </button>
+                  <button type="button" onclick="flipImageEditor('up')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-arrows-left-right text-cyan-400"></i> Lật ngang
+                  </button>
+                  <button type="button" id="upFitBtn" onclick="toggleFitImageEditor('up')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-expand text-amber-400"></i> <span id="upFitBtnText">Lấp đầy (Cover)</span>
+                  </button>
+                  <button type="button" onclick="resetImageEditor('up')" class="px-2 py-1 bg-gray-800 hover:bg-rose-950/60 text-gray-400 hover:text-rose-300 rounded-lg text-[11px] font-semibold ml-auto transition-all">
+                    <i class="fa-solid fa-rotate-left mr-1"></i>Đặt lại
+                  </button>
+                </div>
+
+                <!-- Bộ lọc màu phong cách GTA -->
+                <div class="space-y-1">
+                  <span class="text-[11px] text-gray-400 font-medium block">Bộ lọc màu 1-Click:</span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <button type="button" onclick="applyFilterPreset('up', 'none')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-500 text-black border border-emerald-400 transition-all">Chuẩn (Gốc)</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'cyber')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🎮 GTA Neon</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'cinema')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🎬 Điện ảnh</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'vivid')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">✨ Rực rỡ</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'warm')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">☀️ Hoàng hôn</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'cold')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">❄️ Băng tuyết</button>
+                    <button type="button" onclick="applyFilterPreset('up', 'bw')" class="up-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🖤 Trắng đen</button>
+                  </div>
+                </div>
+
+                <!-- Sliders điều chỉnh -->
+                <div class="grid grid-cols-3 gap-2 pt-1 border-t border-gray-800 text-[10px]">
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Độ sáng</span>
+                      <span id="upBrightVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="upBrightSlider" min="50" max="150" value="100" oninput="updateEditorSliders('up')" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Tương phản</span>
+                      <span id="upContrastVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="upContrastSlider" min="50" max="150" value="100" oninput="updateEditorSliders('up')" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Độ tươi màu</span>
+                      <span id="upSatVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="upSatSlider" min="0" max="200" value="100" oninput="updateEditorSliders('up')" class="w-full accent-emerald-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
                 </div>
               </div>
             </div>
@@ -934,16 +1015,98 @@
           <div>
             <label class="block text-xs font-semibold text-gray-300 mb-1 flex items-center justify-between">
               <span>Ảnh bìa hiển thị ngoài thẻ (Thumbnail)</span>
-              <span class="text-[10px] text-emerald-400">Hiện thẳng ra ngoài trang chủ</span>
+              <span class="text-[10px] text-amber-400">Hiện thẳng ra ngoài trang chủ</span>
             </label>
-            <input type="text" id="editBanner" placeholder="Dán link ảnh trực tiếp (https://... .jpg/.png) hoặc chọn file ảnh từ máy..."
+            <input type="text" id="editBanner" oninput="handleEditBannerUrlInput(this.value)" placeholder="Dán link ảnh trực tiếp (https://... .jpg/.png) hoặc chọn file ảnh từ máy..."
               class="w-full bg-gray-900 border border-gray-700 focus:border-amber-400 rounded-xl px-3.5 py-2 text-white text-xs font-mono outline-none">
             <div class="mt-1.5 flex items-center gap-2">
               <label for="editBannerFile" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-[11px] font-semibold cursor-pointer border border-gray-700 flex items-center gap-1.5 transition-all">
-                <i class="fa-solid fa-cloud-arrow-up text-emerald-400"></i>
+                <i class="fa-solid fa-cloud-arrow-up text-amber-400"></i>
                 <span id="editBannerFileName">Tải ảnh bìa mới từ máy tính</span>
               </label>
               <input type="file" id="editBannerFile" accept="image/*" class="hidden" onchange="handleEditBannerFileSelected(this)">
+            </div>
+
+            <!-- KHUNG XEM TRƯỚC & CHỈNH SỬA ẢNH (EDIT MODAL) -->
+            <div id="editImageEditorBox" class="hidden mt-2.5 p-3 bg-black/70 rounded-xl border border-amber-500/40 space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>Xem Trước & Tinh Chỉnh Ảnh Bìa</span>
+                </div>
+                <button type="button" onclick="removeImageEditor('edit')" class="text-[11px] text-gray-400 hover:text-red-400 flex items-center gap-1 transition-colors">
+                  <i class="fa-solid fa-trash-can"></i>
+                  <span>Bỏ ảnh này</span>
+                </button>
+              </div>
+
+              <!-- Viewport 16:9 Chuẩn Card GTA 5 -->
+              <div class="relative w-full h-40 rounded-xl overflow-hidden bg-black border border-gray-800 shadow-xl flex items-center justify-center">
+                <img id="editImagePreviewTag" src="" alt="Live Preview" class="w-full h-full object-cover transition-all duration-200">
+                <div class="absolute inset-0 bg-gradient-to-t from-[#121522] via-[#121522]/30 to-transparent pointer-events-none"></div>
+                <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-black/80 text-[10px] text-amber-300 font-semibold border border-amber-500/40 backdrop-blur-sm pointer-events-none flex items-center gap-1">
+                  <i class="fa-solid fa-eye text-amber-400"></i> Xem trước chuẩn Card Web
+                </span>
+              </div>
+
+              <!-- Thanh công cụ chỉnh sửa ảnh -->
+              <div class="space-y-2 pt-1">
+                <!-- Xoay & Tỷ lệ -->
+                <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span class="text-[11px] text-gray-400 font-medium">Góc & Tỷ lệ:</span>
+                  <button type="button" onclick="rotateImageEditor('edit', 90)" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-rotate-right text-amber-400"></i> Xoay 90°
+                  </button>
+                  <button type="button" onclick="flipImageEditor('edit')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-arrows-left-right text-cyan-400"></i> Lật ngang
+                  </button>
+                  <button type="button" id="editFitBtn" onclick="toggleFitImageEditor('edit')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all">
+                    <i class="fa-solid fa-expand text-emerald-400"></i> <span id="editFitBtnText">Lấp đầy (Cover)</span>
+                  </button>
+                  <button type="button" onclick="resetImageEditor('edit')" class="px-2 py-1 bg-gray-800 hover:bg-rose-950/60 text-gray-400 hover:text-rose-300 rounded-lg text-[11px] font-semibold ml-auto transition-all">
+                    <i class="fa-solid fa-rotate-left mr-1"></i>Đặt lại
+                  </button>
+                </div>
+
+                <!-- Bộ lọc màu 1-Click -->
+                <div class="space-y-1">
+                  <span class="text-[11px] text-gray-400 font-medium block">Bộ lọc màu phong cách:</span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <button type="button" onclick="applyFilterPreset('edit', 'none')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-amber-500 text-black border border-amber-400 transition-all">Chuẩn (Gốc)</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'cyber')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🎮 GTA Neon</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'cinema')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🎬 Điện ảnh</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'vivid')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">✨ Rực rỡ</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'warm')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">☀️ Hoàng hôn</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'cold')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">❄️ Băng tuyết</button>
+                    <button type="button" onclick="applyFilterPreset('edit', 'bw')" class="edit-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all">🖤 Trắng đen</button>
+                  </div>
+                </div>
+
+                <!-- Sliders điều chỉnh -->
+                <div class="grid grid-cols-3 gap-2 pt-1 border-t border-gray-800 text-[10px]">
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Độ sáng</span>
+                      <span id="editBrightVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="editBrightSlider" min="50" max="150" value="100" oninput="updateEditorSliders('edit')" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Tương phản</span>
+                      <span id="editContrastVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="editContrastSlider" min="50" max="150" value="100" oninput="updateEditorSliders('edit')" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-gray-400 mb-0.5">
+                      <span>Độ tươi màu</span>
+                      <span id="editSatVal" class="text-white font-mono">100%</span>
+                    </div>
+                    <input type="range" id="editSatSlider" min="0" max="200" value="100" oninput="updateEditorSliders('edit')" class="w-full accent-amber-500 cursor-pointer h-1.5 bg-gray-700 rounded-lg">
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 

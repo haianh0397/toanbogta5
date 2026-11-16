@@ -906,10 +906,305 @@ upFile2.addEventListener("change", () => {
   }
 });
 
+// ==========================================
+// BỘ CÔNG CỤ XEM TRƯỚC & CHỈNH SỬA ẢNH BÌA TRỰC QUAN (CARD PREVIEW & EDITOR)
+// ==========================================
+const editorStates = {
+  up: {
+    rotation: 0,
+    flipH: false,
+    fit: 'cover',
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    preset: 'none',
+    imgSrc: '',
+    rawFile: null,
+    isEdited: false
+  },
+  edit: {
+    rotation: 0,
+    flipH: false,
+    fit: 'cover',
+    brightness: 100,
+    contrast: 100,
+    saturation: 100,
+    preset: 'none',
+    imgSrc: '',
+    rawFile: null,
+    isEdited: false
+  }
+};
+
+window.initImageEditor = function(target, imgSrc, rawFile = null) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.imgSrc = imgSrc;
+  st.rawFile = rawFile;
+  st.rotation = 0;
+  st.flipH = false;
+  st.fit = 'cover';
+  st.brightness = 100;
+  st.contrast = 100;
+  st.saturation = 100;
+  st.preset = 'none';
+  st.isEdited = Boolean(rawFile);
+
+  const box = document.getElementById(`${target}ImageEditorBox`);
+  const imgTag = document.getElementById(`${target}ImagePreviewTag`);
+  if (box) box.classList.remove('hidden');
+  if (imgTag) imgTag.src = imgSrc;
+
+  updateEditorPreviewUI(target);
+};
+
+window.updateEditorPreviewUI = function(target) {
+  const st = editorStates[target];
+  if (!st) return;
+  const imgTag = document.getElementById(`${target}ImagePreviewTag`);
+  if (!imgTag) return;
+
+  let filterStr = `brightness(${st.brightness}%) contrast(${st.contrast}%) saturate(${st.saturation}%)`;
+  if (st.preset === 'warm') filterStr += ' sepia(20%) hue-rotate(10deg)';
+  if (st.preset === 'cold') filterStr += ' hue-rotate(-15deg)';
+  if (st.preset === 'bw') filterStr = `grayscale(100%) contrast(120%) brightness(${st.brightness}%)`;
+
+  imgTag.style.filter = filterStr;
+  imgTag.style.transform = `rotate(${st.rotation}deg) scaleX(${st.flipH ? -1 : 1})`;
+  imgTag.style.objectFit = st.fit;
+
+  const bVal = document.getElementById(`${target}BrightVal`);
+  const cVal = document.getElementById(`${target}ContrastVal`);
+  const sVal = document.getElementById(`${target}SatVal`);
+  if (bVal) bVal.textContent = `${st.brightness}%`;
+  if (cVal) cVal.textContent = `${st.contrast}%`;
+  if (sVal) sVal.textContent = `${st.saturation}%`;
+
+  const bSlider = document.getElementById(`${target}BrightSlider`);
+  const cSlider = document.getElementById(`${target}ContrastSlider`);
+  const sSlider = document.getElementById(`${target}SatSlider`);
+  if (bSlider) bSlider.value = st.brightness;
+  if (cSlider) cSlider.value = st.contrast;
+  if (sSlider) sSlider.value = st.saturation;
+
+  const fitBtnText = document.getElementById(`${target}FitBtnText`);
+  if (fitBtnText) {
+    fitBtnText.textContent = st.fit === 'cover' ? 'Lấp đầy (Cover)' : 'Vừa vặn (Contain)';
+  }
+};
+
+window.rotateImageEditor = function(target, deg = 90) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.rotation = (st.rotation + deg) % 360;
+  st.isEdited = true;
+  updateEditorPreviewUI(target);
+};
+
+window.flipImageEditor = function(target) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.flipH = !st.flipH;
+  st.isEdited = true;
+  updateEditorPreviewUI(target);
+};
+
+window.toggleFitImageEditor = function(target) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.fit = st.fit === 'cover' ? 'contain' : 'cover';
+  st.isEdited = true;
+  updateEditorPreviewUI(target);
+};
+
+window.applyFilterPreset = function(target, preset) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.preset = preset;
+  st.isEdited = true;
+
+  if (preset === 'none') {
+    st.brightness = 100;
+    st.contrast = 100;
+    st.saturation = 100;
+  } else if (preset === 'cyber') {
+    st.brightness = 105;
+    st.contrast = 135;
+    st.saturation = 160;
+  } else if (preset === 'cinema') {
+    st.brightness = 95;
+    st.contrast = 125;
+    st.saturation = 110;
+  } else if (preset === 'vivid') {
+    st.brightness = 110;
+    st.contrast = 115;
+    st.saturation = 145;
+  } else if (preset === 'warm') {
+    st.brightness = 105;
+    st.contrast = 110;
+    st.saturation = 125;
+  } else if (preset === 'cold') {
+    st.brightness = 100;
+    st.contrast = 115;
+    st.saturation = 110;
+  } else if (preset === 'bw') {
+    st.brightness = 105;
+    st.contrast = 125;
+    st.saturation = 0;
+  }
+
+  document.querySelectorAll(`.${target}-filter-btn`).forEach(btn => {
+    const isThis = btn.getAttribute('onclick')?.includes(`'${preset}'`);
+    if (isThis) {
+      btn.className = `${target}-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold ${target === 'up' ? 'bg-emerald-500 text-black border-emerald-400' : 'bg-amber-500 text-black border-amber-400'} border transition-all`;
+    } else {
+      btn.className = `${target}-filter-btn px-2 py-0.5 rounded-lg text-[10px] font-bold bg-gray-800 text-gray-300 hover:text-white border border-gray-700 transition-all`;
+    }
+  });
+
+  updateEditorPreviewUI(target);
+};
+
+window.updateEditorSliders = function(target) {
+  const st = editorStates[target];
+  if (!st) return;
+  const bSlider = document.getElementById(`${target}BrightSlider`);
+  const cSlider = document.getElementById(`${target}ContrastSlider`);
+  const sSlider = document.getElementById(`${target}SatSlider`);
+  if (bSlider) st.brightness = parseInt(bSlider.value);
+  if (cSlider) st.contrast = parseInt(cSlider.value);
+  if (sSlider) st.saturation = parseInt(sSlider.value);
+  st.isEdited = true;
+  updateEditorPreviewUI(target);
+};
+
+window.resetImageEditor = function(target) {
+  const st = editorStates[target];
+  if (!st) return;
+  st.rotation = 0;
+  st.flipH = false;
+  st.fit = 'cover';
+  st.brightness = 100;
+  st.contrast = 100;
+  st.saturation = 100;
+  st.preset = 'none';
+  st.isEdited = Boolean(st.rawFile);
+  applyFilterPreset(target, 'none');
+  showToast("Đã đặt lại màu sắc và góc quay ban đầu!", "info");
+};
+
+window.removeImageEditor = function(target) {
+  const st = editorStates[target];
+  if (st) {
+    st.imgSrc = '';
+    st.rawFile = null;
+    st.isEdited = false;
+  }
+  const box = document.getElementById(`${target}ImageEditorBox`);
+  if (box) box.classList.add('hidden');
+  const imgTag = document.getElementById(`${target}ImagePreviewTag`);
+  if (imgTag) imgTag.src = '';
+
+  if (target === 'up') {
+    const upPreview = document.getElementById('upPreviewFile');
+    if (upPreview) upPreview.value = '';
+    const label = document.getElementById('selectedPreviewFileName');
+    if (label) label.textContent = 'Chọn Ảnh Bìa / Video / Audio';
+  } else if (target === 'edit') {
+    const editBanner = document.getElementById('editBanner');
+    if (editBanner) editBanner.value = '';
+    const editFile = document.getElementById('editBannerFile');
+    if (editFile) editFile.value = '';
+    const label = document.getElementById('editBannerFileName');
+    if (label) label.textContent = 'Tải ảnh bìa mới từ máy tính';
+  }
+};
+
+window.handleEditBannerUrlInput = function(url) {
+  if (!url || !url.trim().startsWith('http')) return;
+  initImageEditor('edit', url.trim(), null);
+};
+
+window.exportEditorImageAsFile = function(target, defaultFilename = "cover.jpg") {
+  return new Promise((resolve) => {
+    const st = editorStates[target];
+    if (!st || !st.imgSrc) return resolve(null);
+
+    // Nếu không chỉnh sửa gì và có file gốc thì giữ nguyên file gốc
+    if (!st.isEdited && st.rawFile) {
+      return resolve(st.rawFile);
+    }
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const isRotated90 = Math.abs(st.rotation % 180) === 90;
+        const width = isRotated90 ? img.naturalHeight : img.naturalWidth;
+        const height = isRotated90 ? img.naturalWidth : img.naturalHeight;
+
+        const maxDim = 1600;
+        let scale = 1;
+        if (width > maxDim || height > maxDim) {
+          scale = maxDim / Math.max(width, height);
+        }
+
+        canvas.width = Math.round(width * scale);
+        canvas.height = Math.round(height * scale);
+
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((st.rotation * Math.PI) / 180);
+        if (st.flipH) {
+          ctx.scale(-1, 1);
+        }
+
+        let filterStr = `brightness(${st.brightness}%) contrast(${st.contrast}%) saturate(${st.saturation}%)`;
+        if (st.preset === 'warm') filterStr += ' sepia(20%) hue-rotate(10deg)';
+        if (st.preset === 'cold') filterStr += ' hue-rotate(-15deg)';
+        if (st.preset === 'bw') filterStr = `grayscale(100%) contrast(120%) brightness(${st.brightness}%)`;
+
+        ctx.filter = filterStr;
+
+        const drawW = Math.round((isRotated90 ? height : width) * scale);
+        const drawH = Math.round((isRotated90 ? width : height) * scale);
+        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.restore();
+
+        canvas.toBlob((blob) => {
+          if (!blob) return resolve(st.rawFile || null);
+          const finalFile = new File([blob], defaultFilename, { type: "image/jpeg" });
+          resolve(finalFile);
+        }, "image/jpeg", 0.90);
+      } catch (e) {
+        console.warn("Canvas export fallback:", e);
+        resolve(st.rawFile || null);
+      }
+    };
+    img.onerror = () => resolve(st.rawFile || null);
+    img.src = st.imgSrc;
+  });
+};
+
 upPreviewFile.addEventListener("change", () => {
   if (upPreviewFile.files && upPreviewFile.files[0]) {
     const f = upPreviewFile.files[0];
     selectedPreviewFileName.textContent = `Đã chọn: ${f.name} (${(f.size / (1024 * 1024)).toFixed(2)} MB)`;
+    const ext = f.name.split('.').pop().toLowerCase();
+    const isImg = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'svg'].includes(ext);
+    if (isImg) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        initImageEditor('up', e.target.result, f);
+        showToast("Đã mở khung xem trước! Bạn có thể xoay, chỉnh màu sắc trước khi đăng.", "info");
+      };
+      reader.readAsDataURL(f);
+    } else {
+      removeImageEditor('up');
+    }
   }
 });
 
@@ -1046,11 +1341,30 @@ uploadForm.addEventListener("submit", async (e) => {
     }
 
     try {
-      // Xử lý Preview (Ảnh / Video demo tải kèm) trong chế độ Google Drive
+      // Xử lý Preview & Ảnh minh họa (qua Live Editor nếu có) trong chế độ Google Drive
       let previewObj = null;
       let bannerUrl = "";
 
-      if (upPreviewFile.files && upPreviewFile.files[0]) {
+      const ed = editorStates.up;
+      if (ed && ed.imgSrc) {
+        uploadProgressBar.style.width = "65%";
+        uploadPercent.textContent = "65% (Đang xử lý & tải ảnh bìa đã tinh chỉnh...)";
+        const exportedFile = await exportEditorImageAsFile('up', `cover_${Date.now()}.jpg`);
+        if (exportedFile) {
+          const pUp = await uploadFileToSupabase(exportedFile);
+          bannerUrl = pUp.url;
+          previewObj = {
+            type: 'image',
+            filename: pUp.filename,
+            originalName: exportedFile.name || 'cover.jpg',
+            url: pUp.url,
+            banner: bannerUrl,
+            author: finalAuthor,
+            author_avatar: currentAuthorAvatar,
+            uploader_email: currentUploaderEmail
+          };
+        }
+      } else if (upPreviewFile.files && upPreviewFile.files[0]) {
         uploadProgressBar.style.width = "60%";
         uploadPercent.textContent = "60% (Đang tải ảnh / video minh họa lên Cloud...)";
         const pFile = upPreviewFile.files[0];
@@ -1199,10 +1513,30 @@ uploadForm.addEventListener("submit", async (e) => {
       });
     }
 
-    // 3. Xử lý Preview (Video / Audio file, YouTube link hoặc Ảnh minh họa / Banner)
+    // 3. Xử lý Preview (Video / Audio file, YouTube link hoặc Ảnh minh họa / Banner qua Live Editor)
     let previewObj = null;
     let bannerUrl = "";
-    if (upPreviewFile.files && upPreviewFile.files[0]) {
+
+    const ed = editorStates.up;
+    if (ed && ed.imgSrc) {
+      uploadProgressBar.style.width = "80%";
+      uploadPercent.textContent = "80% (Đang xử lý & tải ảnh bìa đã tinh chỉnh...)";
+      const exportedFile = await exportEditorImageAsFile('up', `cover_${Date.now()}.jpg`);
+      if (exportedFile) {
+        const pUp = await uploadFileToSupabase(exportedFile);
+        bannerUrl = pUp.url;
+        previewObj = {
+          type: 'image',
+          filename: pUp.filename,
+          originalName: exportedFile.name || 'cover.jpg',
+          url: pUp.url,
+          banner: bannerUrl,
+          author: finalAuthor,
+          author_avatar: currentAuthorAvatar,
+          uploader_email: currentUploaderEmail
+        };
+      }
+    } else if (upPreviewFile.files && upPreviewFile.files[0]) {
       uploadPercent.textContent = "Đang tải ảnh / video xem thử...";
       const pFile = upPreviewFile.files[0];
       const pUp = await uploadFileToSupabase(pFile);
@@ -1362,6 +1696,7 @@ openUploadBtn.addEventListener("click", () => {
 function closeUpload() {
   uploadModal.classList.add("hidden");
   uploadForm.reset();
+  removeImageEditor('up');
   switchUploadMode('local');
   upCategory.disabled = false;
   upCategory.classList.remove("opacity-75", "cursor-not-allowed", "border-emerald-500/50", "bg-gray-950");
@@ -1941,24 +2276,18 @@ window.renderAdminTable = function() {
   }).join('');
 };
 
-window.handleEditBannerFileSelected = async function(input) {
+window.handleEditBannerFileSelected = function(input) {
   if (!input.files || !input.files[0]) return;
   const file = input.files[0];
   const label = document.getElementById('editBannerFileName');
-  if (label) label.textContent = `Đang tải: ${file.name}...`;
+  if (label) label.textContent = `Đã chọn: ${file.name}`;
 
-  try {
-    const uploaded = await uploadFileToSupabase(file);
-    const editBannerInput = document.getElementById('editBanner');
-    if (editBannerInput) {
-      editBannerInput.value = uploaded.url;
-    }
-    if (label) label.textContent = `Đã tải: ${file.name} ✅`;
-    showToast(`Đã tải ảnh bìa lên Cloud thành công! Hãy bấm 'LƯU THAY ĐỔI' để cập nhật.`, 'success');
-  } catch (err) {
-    if (label) label.textContent = "Tải ảnh thất bại!";
-    showToast("Lỗi tải ảnh: " + err.message, "error");
-  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    initImageEditor('edit', e.target.result, file);
+    showToast(`Đã nạp ảnh vào khung xem trước! Bạn có thể xoay, chỉnh màu rồi bấm 'LƯU'.`, 'info');
+  };
+  reader.readAsDataURL(file);
 };
 
 window.openEditModal = function(e, id) {
@@ -1980,12 +2309,20 @@ window.openEditModal = function(e, id) {
   document.getElementById('editGuide').value = item.guide || '';
 
   const editBanner = document.getElementById('editBanner');
+  const currentBanner = item.banner || (item.preview && (item.preview.banner || (item.preview.type === 'image' ? item.preview.url : ''))) || '';
   if (editBanner) {
-    editBanner.value = item.banner || (item.preview && (item.preview.banner || (item.preview.type === 'image' ? item.preview.url : ''))) || '';
+    editBanner.value = currentBanner;
   }
   const editBannerFileName = document.getElementById('editBannerFileName');
   if (editBannerFileName) {
     editBannerFileName.textContent = 'Tải ảnh bìa mới từ máy tính';
+  }
+
+  // Khởi tạo Live Preview trong Edit Modal
+  if (currentBanner) {
+    initImageEditor('edit', currentBanner, null);
+  } else {
+    removeImageEditor('edit');
   }
 
   modal.classList.remove('hidden');
@@ -1994,6 +2331,7 @@ window.openEditModal = function(e, id) {
 window.closeEditModal = function() {
   const modal = document.getElementById('editResourceModal');
   if (modal) modal.classList.add('hidden');
+  removeImageEditor('edit');
 };
 
 window.handleSaveEditResource = async function(e) {
@@ -2008,7 +2346,7 @@ window.handleSaveEditResource = async function(e) {
   const version = document.getElementById('editVersion').value.trim() || 'v1.0';
   const size = document.getElementById('editSize').value.trim() || item.size;
   const directUrl = document.getElementById('editDirectUrl').value.trim();
-  const bannerUrl = document.getElementById('editBanner') ? document.getElementById('editBanner').value.trim() : '';
+  let bannerUrl = document.getElementById('editBanner') ? document.getElementById('editBanner').value.trim() : '';
   const note = document.getElementById('editNote').value.trim();
   const guide = document.getElementById('editGuide').value.trim();
 
@@ -2017,6 +2355,25 @@ window.handleSaveEditResource = async function(e) {
   if (saveBtn) {
     saveBtn.disabled = true;
     saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG LƯU...</span>`;
+  }
+
+  // Nếu người dùng có chỉnh sửa hoặc tải ảnh mới qua Live Editor
+  const ed = editorStates.edit;
+  if (ed && ed.imgSrc && ed.isEdited) {
+    if (saveBtn) {
+      saveBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>ĐANG XỬ LÝ ẢNH BÌA...</span>`;
+    }
+    try {
+      const exportedFile = await exportEditorImageAsFile('edit', `banner_${Date.now()}.jpg`);
+      if (exportedFile) {
+        const pUp = await uploadFileToSupabase(exportedFile);
+        bannerUrl = pUp.url;
+        const editBannerInput = document.getElementById('editBanner');
+        if (editBannerInput) editBannerInput.value = bannerUrl;
+      }
+    } catch (errUpload) {
+      console.warn("Upload edited banner warning:", errUpload);
+    }
   }
 
   // Update preview object
